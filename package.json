@@ -1,0 +1,9 @@
+{
+  "name": "rowskan",
+  "version": "1.0.0",
+  "description": "RowSkan - scan VINs and photos on a phone, sync over WiFi to the computer. A product of LIT America.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}

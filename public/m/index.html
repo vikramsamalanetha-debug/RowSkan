@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f59e0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RowSkan">
+<title>RowSkan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f4ef;--surface:#fff;--ink:#1d2430;--muted:#667085;--line:#e4e0d6;--brand:#f59e0b;--brand-ink:#3a2500;--dark:#1f2937;--ok:#15803d;--warn:#b45309;--bad:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--surface:#1c2027;--ink:#eceff4;--muted:#9aa4b2;--line:#2c323c;--brand-ink:#1a1100}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+.screen{display:none;min-height:100%;flex-direction:column}
+.screen.on{display:flex}
+.top{background:var(--dark);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px}
+.top h1{font-size:18px;margin:0;flex:1}
+.top img{width:28px;height:28px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.12);color:#fff;border:0}
+.dot{width:9px;height:9px;border-radius:50%;background:#9ca3af}
+.dot.on{background:#22c55e}.dot.bad{background:#ef4444}
+.body{padding:16px;flex:1;display:flex;flex-direction:column;gap:12px}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:14px 16px;border-radius:14px;min-height:52px}
+button.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:700;font-size:18px}
+button.ghost{background:transparent}
+button:disabled{opacity:.5}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.small{font-size:13px;color:var(--muted)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.5px}
+.vcard{display:flex;gap:12px;align-items:center;text-align:left;width:100%}
+.vcard .th{width:64px;height:48px;border-radius:8px;background:rgba(127,127,127,.2);object-fit:cover;flex:none}
+.vcard .t{flex:1;min-width:0}
+.vcard .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--ok);border-color:var(--ok)}.chip.wait{color:var(--warn);border-color:var(--warn)}
+.cam{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4;max-height:56vh;width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.reticle{position:absolute;left:6%;right:6%;top:38%;bottom:38%;border:3px solid rgba(245,158,11,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.35);pointer-events:none}
+.hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 3px #000;padding:0 12px}
+.shutter{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:var(--brand);box-shadow:0 0 0 3px var(--brand);padding:0;min-height:0;flex:none}
+.shutter:active{transform:scale(.94)}
+.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.strip .ph{position:relative;flex:none;width:76px;height:76px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.strip img{width:100%;height:100%;object-fit:cover}
+.strip .x{position:absolute;top:2px;right:2px;width:24px;height:24px;min-height:0;padding:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:0;font-size:14px;line-height:24px}
+.strip .ok{position:absolute;bottom:2px;right:4px;color:#22c55e;font-size:14px;text-shadow:0 0 3px #000}
+input[type=text]{width:100%;font:inherit;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);text-transform:uppercase}
+input.free{text-transform:none}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.kv span{display:block;font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.4px}
+.banner{padding:10px 12px;border-radius:12px;background:rgba(180,83,9,.12);color:var(--warn);font-size:14px}
+.banner.err{background:rgba(185,28,28,.12);color:var(--bad)}
+.foot{text-align:center;color:var(--muted);font-size:12px;padding:14px 0 calc(14px + env(safe-area-inset-bottom))}
+.foot a{color:inherit;font-weight:600}
+.sticky{position:sticky;bottom:0;background:var(--bg);padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.toggle input{width:44px;height:26px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center;z-index:9}
+#toast.show{opacity:1}
+progress{width:100%;height:8px}
+</style>
+</head>
+<body>
+
+<!-- PAIR -->
+<section class="screen" id="sPair">
+  <div class="top"><img src="icon.svg" alt=""><h1>RowSkan</h1></div>
+  <div class="body">
+    <div class="banner" id="unlinkedMsg" hidden></div>
+    <div class="card"><b>Link this phone to your computer</b>
+      <p class="small" style="margin:6px 0 0">Like WhatsApp Web: on the computer, open the RowSkan dashboard and choose <b>Link a phone</b>. Point this phone’s <b>camera app</b> at the QR code and open the link. That’s it.</p></div>
+    <div class="card">
+      <b>Or type the code</b>
+      <p class="small" style="margin:6px 0 8px">Shown under the QR code on the computer. It works once and expires in a few minutes.</p>
+      <input type="text" id="keyIn" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX" class="mono">
+      <input type="text" class="free" id="devName" maxlength="30" placeholder="Name for this phone" style="margin-top:8px">
+      <button class="primary" id="keyGo" style="margin-top:10px;width:100%">Link this phone</button>
+      <p class="banner err" id="keyErr" hidden style="margin-bottom:0"></p>
+    </div>
+    <div class="small" style="text-align:center">Everything you scan stays on this phone and your computer. Nothing is sent to the cloud.</div>
+  </div>
+  <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+</section>
+
+<!-- HOME -->
+<section class="screen" id="sHome">
+  <div class="top"><img src="icon.svg" alt=""><h1>RowSkan</h1>
+    <button class="pill" id="connPill"><span class="dot" id="connDot"></span><span id="connTxt">Checking…</span></button></div>
+  <div class="body">
+    <button class="primary" id="newVeh" style="width:100%;min-height:64px">📷 Scan next vehicle</button>
+    <div class="card" id="syncCard">
+      <div class="toggle"><div><b id="pendTxt">Nothing waiting</b><div class="small" id="syncMsg"></div></div>
+        <button id="syncNow" style="flex:none">Sync now</button></div>
+      <progress id="prog" hidden></progress>
+    </div>
+    <div id="list" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="small" id="emptyMsg" style="text-align:center;padding:30px 10px">No vehicles yet. Tap <b>Scan next vehicle</b> to begin.</div>
+    <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+  </div>
+</section>
+
+<!-- SCAN VIN -->
+<section class="screen" id="sScan">
+  <div class="top"><button class="pill" id="scanBack">‹ Back</button><h1 style="text-align:center">Scan the VIN</h1><span style="width:64px"></span></div>
+  <div class="body">
+    <div class="cam"><video id="scanVideo" playsinline muted autoplay></video><div class="reticle"></div>
+      <div class="hint" id="scanHint">Hold the barcode inside the box</div></div>
+    <div class="banner" id="scanNote" hidden></div>
+    <div class="row"><button id="torchBtn" hidden>🔦 Light</button><button id="scanPhotoBtn" hidden>🖼 Pick a photo</button></div>
+    <div class="card">
+      <b>Or type it</b>
+      <input type="text" id="vinIn" maxlength="17" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="17-character VIN" style="margin-top:8px" class="mono">
+      <div class="small" id="vinMsg" style="margin-top:6px"></div>
+      <button class="primary" id="vinGo" style="margin-top:8px;width:100%" disabled>Use this VIN</button>
+    </div>
+  </div>
+</section>
+
+<!-- VEHICLE -->
+<section class="screen" id="sVeh">
+  <div class="top"><button class="pill" id="vehBack">‹ Home</button><h1 id="vehTitle" style="text-align:center;font-size:16px">Vehicle</h1><span style="width:64px"></span></div>
+  <div class="body" style="padding-bottom:0">
+    <div class="card">
+      <div class="mono" id="vehVin" style="font-weight:700"></div>
+      <div id="vehDecoded" class="kv" style="margin-top:8px"></div>
+      <div class="banner" id="vehWarn" hidden style="margin-top:8px"></div>
+    </div>
+    <div class="cam" id="photoCam"><video id="photoVideo" playsinline muted autoplay></video>
+      <div class="hint" id="photoHint"></div></div>
+    <div class="row" style="align-items:center">
+      <div class="small" id="photoCount" style="flex:1"></div>
+      <button class="shutter" id="shutter" aria-label="Take photo"></button>
+      <div style="flex:1;text-align:right"><button id="pickBtn" hidden>Add from camera roll</button></div>
+    </div>
+    <div class="strip" id="strip"></div>
+    <input type="text" class="free" id="locIn" placeholder="Lot spot / row (optional)" maxlength="60">
+    <input type="text" class="free" id="noteIn" placeholder="Notes (optional)" maxlength="300">
+    <input type="file" id="fileIn" accept="image/*" capture="environment" multiple hidden>
+    <input type="file" id="fileScan" accept="image/*" hidden>
+  </div>
+  <div class="sticky"><div class="row"><button id="vehDel" class="ghost" style="flex:0 0 auto">🗑</button><button class="primary" id="vehDone">Done — next vehicle</button></div></div>
+</section>
+
+<!-- SETTINGS -->
+<section class="screen" id="sSet">
+  <div class="top"><button class="pill" id="setBack">‹ Back</button><h1 style="text-align:center">Sync</h1><span style="width:64px"></span></div>
+  <div class="body">
+    <div class="card"><div class="toggle"><div><b>Sync automatically</b><div class="small">When this phone is on the same WiFi as the computer, finished vehicles send themselves.</div></div>
+      <input type="checkbox" id="autoSync"></div></div>
+    <div class="card"><b>Linked computer</b><div class="small" id="setComputer" style="margin-top:4px"></div></div>
+    <div class="card"><b>On this phone</b><div class="small" id="setStore" style="margin-top:4px"></div>
+      <button id="clearSynced" style="margin-top:10px;width:100%">Free space (remove already-synced photos from this phone)</button></div>
+    <button id="unpair" class="ghost">Unlink this phone</button>
+    <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+  </div>
+</section>
+
+<div id="toast"></div>
+<script src="code39.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RowSkan — Inventory</title>
+<link rel="icon" href="/m/icon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#f6f4ef; --surface:#fff; --ink:#1d2430; --muted:#667085; --line:#e4e0d6;
+  --brand:#f59e0b; --brand-ink:#3a2500; --dark:#1f2937; --ok:#15803d; --warn:#b45309; --bad:#b91c1c;
+  --radius:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#14171c;--surface:#1c2027;--ink:#eceff4;--muted:#9aa4b2;--line:#2c323c;--brand-ink:#1a1100}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--dark);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header .logo{width:34px;height:34px}
+header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px}
+header .sub{color:#cbd2dc;font-size:13px}
+header .sp{flex:1}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#cbd2dc}
+.dot{width:9px;height:9px;border-radius:50%;background:#9ca3af}
+.dot.on{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+main{max-width:1180px;margin:0 auto;padding:22px 24px 60px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.stat b{display:block;font-size:28px;line-height:1.1}
+.stat span{color:var(--muted);font-size:13px}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.bar input[type=search]{flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;border-radius:10px;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{border-color:var(--brand)}
+button.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:700}
+button.danger{color:var(--bad)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);background:rgba(127,127,127,.06)}
+tr.row{cursor:pointer}
+tr.row:hover td{background:rgba(245,158,11,.08)}
+tr.flash td{animation:fl 1.6s}
+@keyframes fl{from{background:rgba(245,158,11,.35)}to{background:transparent}}
+.thumb{width:64px;height:44px;border-radius:6px;object-fit:cover;background:#ccc;display:block}
+.noimg{width:64px;height:44px;border-radius:6px;background:rgba(127,127,127,.15);display:grid;place-items:center;color:var(--muted);font-size:11px}
+.mono{font-family:ui-monospace,Consolas,Menlo,monospace;letter-spacing:.3px}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line);color:var(--muted)}
+.tag.warn{color:var(--warn);border-color:var(--warn)}
+.empty{padding:50px 20px;text-align:center;color:var(--muted)}
+details.pair{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:20px}
+details.pair summary{cursor:pointer;padding:14px 16px;font-weight:600}
+.pairbody{display:flex;gap:26px;padding:0 16px 18px;flex-wrap:wrap;align-items:flex-start}
+.qr{width:200px;height:200px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.qr svg{width:100%;height:100%;display:block}
+.pairbody ol{margin:0;padding-left:20px;max-width:520px}
+.pairbody li{margin-bottom:6px}
+.key{font-size:22px;font-weight:800;letter-spacing:3px}
+.small{font-size:13px;color:var(--muted)}
+a{color:#b45309}
+@media (prefers-color-scheme:dark){a{color:#fbbf24}}
+dialog{border:none;border-radius:16px;padding:0;width:min(920px,95vw);max-height:92vh;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,12,16,.55)}
+.dh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.dh h2{margin:0;font-size:19px;flex:1}
+.db{padding:18px 20px;overflow:auto;max-height:calc(92vh - 70px)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 18px;margin-bottom:16px}
+.kv div span{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:14px 0}
+.photos a{display:block;border-radius:10px;overflow:hidden;border:1px solid var(--line);aspect-ratio:4/3}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 4px}
+input[type=text],textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;background:var(--surface);color:var(--ink)}
+#addDlg .cam{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/9;max-height:300px;margin:8px 0}
+#addDlg .cam video{width:100%;height:100%;object-fit:contain;display:block}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;color:var(--muted);margin:8px 0}
+.drop.over{border-color:var(--brand);background:rgba(245,158,11,.08)}
+.athumbs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.athumbs .t{position:relative;width:96px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.athumbs img{width:100%;height:100%;object-fit:cover}
+.athumbs button{position:absolute;top:2px;right:2px;width:22px;height:22px;padding:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:0;line-height:20px}
+.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#reg{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+#reg[hidden]{display:none}
+#reg .box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px;width:min(440px,100%);box-shadow:0 10px 40px rgba(0,0,0,.08)}
+#reg h2{margin:0 0 6px;font-size:22px}
+#reg input{font-size:18px;padding:12px;margin-top:6px}
+#reg .err{color:var(--bad);font-size:14px;margin-top:8px;min-height:20px}
+#reg .tabs{display:flex;gap:6px;margin-bottom:14px;background:rgba(127,127,127,.12);padding:4px;border-radius:12px}
+#reg .tabs button{flex:1;border:0;background:transparent;padding:9px;border-radius:9px;font-weight:600}
+#reg .tabs button.on{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+#reg .pw{display:flex;gap:6px;align-items:center}
+#reg .pw input{flex:1;margin-top:6px}
+#reg .pw button{margin-top:6px;padding:10px 12px}
+#reg .code{letter-spacing:8px;text-align:center;font-size:26px}
+footer{text-align:center;color:var(--muted);font-size:13px;padding:30px 0}
+footer a{color:inherit;font-weight:600}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 16px;border-radius:10px;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="reg" hidden>
+  <div class="box">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><img src="/m/icon.svg" alt="" width="36" height="36"><b style="font-size:18px">RowSkan</b></div>
+    <div id="regForm">
+      <p class="small" style="margin:0 0 12px">Sign in to manage your inventory, or create an account.</p>
+      <div class="tabs"><button id="tabIn" class="on">Sign In</button><button id="tabUp">Register</button></div>
+      <label>Email</label>
+      <input type="text" id="regEmail" class="free" autocomplete="username" inputmode="email" style="text-transform:none">
+      <label>Password</label>
+      <input type="password" id="regPw" class="free" autocomplete="current-password" style="text-transform:none;width:100%">
+      <div class="small" id="regHint" style="margin-top:4px" hidden>At least 8 characters.</div>
+      <button class="primary" id="regGo" style="width:100%;margin-top:14px">Sign in</button>
+      <div style="text-align:center;margin-top:10px"><button id="regForgot" class="ghost" style="padding:6px 10px">Forgot your password?</button></div>
+    </div>
+    <div id="regReset" hidden>
+      <h2>Reset your password</h2>
+      <p class="small" style="margin:0 0 8px">Enter your email and we will send you a link to set a new password.</p>
+      <input type="text" id="rsEmail" class="free" autocomplete="email" inputmode="email" style="text-transform:none">
+      <button class="primary" id="rsSend" style="width:100%;margin-top:12px">Send reset link</button>
+      <div class="small" id="rsSent" hidden style="margin-top:10px">If that email has an account, a reset link is on its way. Check your spam folder too.</div>
+      <div style="text-align:center;margin-top:10px"><button id="rsBack" class="ghost" style="padding:6px 10px">Back to sign in</button></div>
+    </div>
+    <div id="regSetup" hidden>
+      <h2>Sign-up is not set up yet</h2>
+      <p class="small">This copy of RowSkan has no sign-up service connected. The owner needs to add the sign-up keys to <span class="mono">account.config.json</span> (see README, “Account sign-up”), then restart RowSkan.</p>
+    </div>
+    <div class="small" id="regDev" hidden style="margin-top:12px;padding:8px;border-radius:8px;background:rgba(180,83,9,.12);color:var(--warn)">Demo mode: accounts live only in memory on this computer, and no reset emails are sent.</div>
+    <div class="err" id="regErr" role="alert"></div>
+    <div class="small" style="text-align:center;margin-top:14px">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+  </div>
+</div>
+<header>
+  <img class="logo" src="/m/icon.svg" alt="">
+  <div><h1>RowSkan</h1><div class="sub">Vehicle inventory</div></div>
+  <div class="sp"></div>
+  <div class="live" id="acct" style="margin-right:14px"></div>
+  <div class="live"><span class="dot" id="liveDot"></span><span id="liveTxt">Connecting…</span></div>
+</header>
+
+<main>
+  <details class="pair" id="pair">
+    <summary>📱 Link a phone</summary>
+    <div class="pairbody" id="pairBody"><span class="small">Loading…</span></div>
+    <div style="padding:0 16px 16px"><b>Linked phones</b><div id="devList" class="small" style="margin-top:6px"></div></div>
+  </details>
+
+  <div class="grid">
+    <div class="stat"><b id="sVeh">0</b><span>Vehicles</span></div>
+    <div class="stat"><b id="sPh">0</b><span>Photos</span></div>
+    <div class="stat"><b id="sNo">0</b><span>Need a closer look (no decode / bad VIN check)</span></div>
+    <div class="stat"><b id="sLast" style="font-size:18px;padding-top:7px">—</b><span>Last sync from a phone</span></div>
+  </div>
+
+  <div class="bar">
+    <input type="search" id="q" placeholder="Search VIN, make, model, notes, lot location…">
+    <button class="primary" id="addBtn">＋ Add vehicle / photos</button>
+    <a class="btn" href="/api/export.csv" download>Export CSV</a>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th></th><th>VIN</th><th>Vehicle</th><th>Photos</th><th>Lot spot</th><th>Synced</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>No vehicles yet. Link a phone above, scan a VIN, take photos, and sync.</div>
+  </div>
+</main>
+
+<footer>A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</footer>
+
+<dialog id="dlg">
+  <div class="dh"><h2 id="dTitle"></h2><button id="dClose">Close</button></div>
+  <div class="db" id="dBody"></div>
+</dialog>
+<dialog id="addDlg">
+  <div class="dh"><h2>Add vehicle / photos from this computer</h2><button id="aClose">Close</button></div>
+  <div class="db">
+    <label style="margin-top:0">VIN</label>
+    <div class="row2"><input type="text" id="aVin" class="mono" maxlength="17" placeholder="17-character VIN (type, or scan it with the webcam)" style="flex:1;min-width:260px;text-transform:uppercase">
+      <button id="aScan">Scan VIN with webcam</button></div>
+    <div class="small" id="aVinMsg" style="margin-top:4px"></div>
+    <div class="cam" id="aCam" hidden><video id="aVideo" playsinline muted autoplay></video></div>
+    <div class="row2" id="aCamBar" hidden><button class="primary" id="aShot">📷 Take photo</button><span class="small" id="aCamMsg"></span></div>
+    <div class="drop" id="aDrop">Drag photos here, or <button id="aPick" style="padding:5px 10px">choose files</button> · <button id="aCamBtn" style="padding:5px 10px">use webcam</button>
+      <input type="file" id="aFiles" accept="image/*" multiple hidden></div>
+    <div class="athumbs" id="aThumbs"></div>
+    <label>Lot location</label><input type="text" id="aLoc" maxlength="60">
+    <label>Notes</label><input type="text" id="aNotes" maxlength="300">
+    <div class="bar" style="margin-top:14px"><button class="primary" id="aSave" disabled>Save to inventory</button><span class="small" id="aSaveMsg"></span></div>
+  </div>
+</dialog>
+<div id="toast"></div>
+
+<script src="/m/code39.js"></script>
+<script>
+(function(){
+  var vehicles = [], flashVin = null;
+  var $ = function(id){return document.getElementById(id)};
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function toast(t){var e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(function(){e.classList.remove('show')},2200)}
+  function ago(iso){
+    if(!iso) return '—';
+    var s=(Date.now()-new Date(iso))/1000;
+    if(s<60) return 'just now'; if(s<3600) return Math.floor(s/60)+' min ago';
+    if(s<86400) return Math.floor(s/3600)+' h ago';
+    return new Date(iso).toLocaleDateString();
+  }
+  function title(v){var d=v.decoded||{};var t=[d.year,d.make,d.model].filter(Boolean).join(' ');return t||'Not decoded yet'}
+  function photoCount(v){return (v.photos||[]).filter(function(p){return !p.pending}).length}
+  function needsLook(v){var d=v.decoded||{};return !(d.make&&d.year)||v.vinCheckOk===false}
+
+  function render(){
+    var term=$('q').value.trim().toLowerCase();
+    var list=vehicles.filter(function(v){
+      if(!term) return true;
+      var d=v.decoded||{};
+      return [v.vin,d.make,d.model,d.year,d.trim,v.notes,v.lotLocation].join(' ').toLowerCase().indexOf(term)>=0;
+    });
+    var tb=$('rows'); tb.innerHTML='';
+    list.forEach(function(v){
+      var first=(v.photos||[]).filter(function(p){return !p.pending})[0];
+      var tr=document.createElement('tr'); tr.className='row'+(v.vin===flashVin?' flash':'');
+      tr.innerHTML='<td>'+(first?'<img class="thumb" loading="lazy" src="/api/photo/'+v.vin+'/'+first.id+'">':'<div class="noimg">no photo</div>')+'</td>'+
+        '<td class="mono">'+esc(v.vin)+(v.vinCheckOk===false?' <span class="tag warn" title="VIN check digit did not validate - re-check the VIN">check VIN</span>':'')+'</td>'+
+        '<td>'+esc(title(v))+(v.decoded&&v.decoded.trim?'<div class="small">'+esc(v.decoded.trim)+'</div>':'')+'</td>'+
+        '<td>'+photoCount(v)+'</td><td>'+esc(v.lotLocation||'')+'</td><td class="small">'+ago(v.syncedAt)+'</td>';
+      tr.onclick=function(){openDetail(v.vin)};
+      tb.appendChild(tr);
+    });
+    $('empty').hidden=vehicles.length>0;
+    $('sVeh').textContent=vehicles.length;
+    $('sPh').textContent=vehicles.reduce(function(a,v){return a+photoCount(v)},0);
+    $('sNo').textContent=vehicles.filter(needsLook).length;
+    var last=vehicles.map(function(v){return v.syncedAt}).filter(Boolean).sort().pop();
+    $('sLast').textContent=ago(last);
+    flashVin=null;
+  }
+  function load(){
+    return fetch('/api/vehicles').then(function(r){return r.json()}).then(function(l){vehicles=l;render()});
+  }
+  $('q').addEventListener('input',render);
+
+  function openDetail(vin){
+    fetch('/api/vehicles/'+vin).then(function(r){return r.json()}).then(function(v){
+      var d=v.decoded||{};
+      $('dTitle').innerHTML=esc(title(v))+' <span class="mono small">'+esc(v.vin)+'</span>';
+      var fields=[['Year',d.year],['Make',d.make],['Model',d.model],['Trim',d.trim],['Body',d.bodyClass],['Type',d.vehicleType],['Drive',d.driveType],['Engine',[d.cylinders&&d.cylinders+' cyl',d.displacementL&&d.displacementL+' L'].filter(Boolean).join(' · ')],['Fuel',d.fuel],['Transmission',d.transmission],['GVWR',d.gvwr],['Built in',[d.plantCity,d.plantCountry].filter(Boolean).join(', ')]];
+      var h='<div class="kv">'+fields.map(function(f){return '<div><span>'+f[0]+'</span>'+esc(f[1]||'—')+'</div>'}).join('')+'</div>';
+      if(!(d.make&&d.year)||v.vinCheckOk===false){
+        h+='<p class="small">'+(v.vinCheckOk===false?'⚠ This VIN failed the check-digit test (typo, or a non-North-American VIN). ':'')+(d.errorText?esc(d.errorText)+' ':'')+'<button id="redec">Retry VIN decode</button></p>';
+      }
+      var ph=(v.photos||[]).filter(function(p){return !p.pending});
+      h+='<div class="small">'+ph.length+' photo'+(ph.length===1?'':'s')+' · captured '+(v.capturedAt?new Date(v.capturedAt).toLocaleString():'—')+(v.device?' · '+esc(v.device):'')+'</div>';
+      h+='<div class="photos">'+ph.map(function(p){return '<a href="/api/photo/'+v.vin+'/'+p.id+'" target="_blank"><img loading="lazy" src="/api/photo/'+v.vin+'/'+p.id+'"></a>'}).join('')+'</div>';
+      h+='<label>Lot location</label><input type="text" id="eLoc" value="'+esc(v.lotLocation||'')+'">';
+      h+='<label>Notes</label><textarea id="eNotes" rows="3">'+esc(v.notes||'')+'</textarea>';
+      h+='<div class="bar" style="margin-top:14px"><button class="primary" id="eSave">Save</button><button id="eAdd">＋ Add photos</button><span style="flex:1"></span><button class="danger" id="eDel">Delete vehicle…</button></div>';
+      $('dBody').innerHTML=h;
+      var rd=$('redec'); if(rd) rd.onclick=function(){patch(vin,{redecode:true}).then(function(){toast('Decoded');openDetail(vin)}).catch(function(e){toast(e.message)})};
+      $('eSave').onclick=function(){patch(vin,{notes:$('eNotes').value,lotLocation:$('eLoc').value}).then(function(){toast('Saved')}).catch(function(e){toast(e.message)})};
+      $('eAdd').onclick=function(){$('dlg').close();openAdd(vin)};
+      $('eDel').onclick=function(){
+        if(!confirm('Delete '+vin+' and all of its photos from this computer? This cannot be undone.')) return;
+        fetch('/api/vehicles/'+vin,{method:'DELETE'}).then(function(){$('dlg').close();toast('Deleted');load()});
+      };
+      if(!$('dlg').open) $('dlg').showModal();
+    });
+  }
+  function patch(vin,body){
+    return fetch('/api/vehicles/'+vin,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json().then(function(j){if(!r.ok) throw new Error(j.error||'Failed');return j})});
+  }
+  $('dClose').onclick=function(){$('dlg').close()};
+
+
+  /* ---- add vehicle / photos from this computer (webcam or files) ---- */
+  var C39=window.LotCode39, A={photos:[],stream:null,scanning:false,det:null,hits:0,last:null};
+  function aStop(){A.scanning=false;if(A.stream){A.stream.getTracks().forEach(function(t){t.stop()});A.stream=null}$('aCam').hidden=true;$('aCamBar').hidden=true}
+  function aCheck(){
+    var v=$('aVin').value.toUpperCase().replace(/[^A-Z0-9]/g,'');$('aVin').value=v;
+    var ok=/^[A-HJ-NPR-Z0-9]{17}$/.test(v),m=$('aVinMsg');
+    m.textContent=!v?'':v.length<17?v.length+' of 17 characters':!ok?'VINs never contain I, O or Q':C39.vinCheckOk(v)?'✓ Valid VIN':'Check digit does not match - double-check (fine for older/foreign vehicles)';
+    $('aSave').disabled=!(ok&&(A.photos.length||true));
+    return ok;
+  }
+  function aThumbs(){
+    var w=$('aThumbs');w.innerHTML='';
+    A.photos.forEach(function(p,i){var d=document.createElement('div');d.className='t';d.innerHTML='<img src="'+p.url+'" alt=""><button aria-label="Remove">×</button>';
+      d.querySelector('button').onclick=function(){URL.revokeObjectURL(p.url);A.photos.splice(i,1);aThumbs()};w.appendChild(d)});
+  }
+  function aAddBlob(b){A.photos.push({id:rid(),blob:b,url:URL.createObjectURL(b),takenAt:new Date().toISOString()});aThumbs()}
+  function rid(){var a=new Uint8Array(9);crypto.getRandomValues(a);return Array.prototype.map.call(a,function(x){return x.toString(36).padStart(2,'0')}).join('').slice(0,16)}
+  function toJpeg(src,w,h,max){
+    var k=Math.min(1,max/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+    c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+    return new Promise(function(res){c.toBlob(res,'image/jpeg',0.85)});
+  }
+  function aFiles(list){
+    Array.prototype.slice.call(list).filter(function(f){return /^image\//.test(f.type)}).reduce(function(p,f){
+      return p.then(function(){return createImageBitmap(f).then(function(bm){return toJpeg(bm,bm.width,bm.height,1920)}).then(function(b){if(b)aAddBlob(b)})});
+    },Promise.resolve()).catch(function(){toast('Could not read one of the files')});
+  }
+  function aCamStart(){
+    if(A.stream) return Promise.resolve();
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('No webcam access in this browser');return Promise.reject()}
+    return navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080}},audio:false}).then(function(s){
+      A.stream=s;$('aVideo').srcObject=s;$('aCam').hidden=false;$('aCamBar').hidden=false;return $('aVideo').play().catch(function(){});
+    }).catch(function(e){toast('Webcam unavailable: '+((e&&e.message)||'permission denied'));throw e});
+  }
+  function aScanLoop(){
+    if(!A.scanning) return;
+    var v=$('aVideo');
+    var run=Promise.resolve(null);
+    if(v.readyState>=2&&v.videoWidth){
+      var c=document.createElement('canvas'),k=Math.min(1,1280/v.videoWidth);c.width=Math.round(v.videoWidth*k);c.height=Math.round(v.videoHeight*k);
+      var g=c.getContext('2d');g.drawImage(v,0,0,c.width,c.height);
+      run=(A.det?A.det.detect(c).then(function(cs){return C39.extractVin(cs.map(function(x){return x.rawValue}).join(' '))}).catch(function(){return null}):Promise.resolve(null)).then(function(vin){
+        if(vin) return vin;
+        var d=g.getImageData(0,0,c.width,c.height).data,n=c.width*c.height,gr=new Uint8Array(n);
+        for(var i=0,j=0;i<n;i++,j+=4)gr[i]=(d[j]*77+d[j+1]*150+d[j+2]*29)>>8;
+        return C39.extractVin(C39.decodeImage(gr,c.width,c.height,{rows:25,top:0.2,bottom:0.8}));
+      });
+    }
+    run.then(function(vin){
+      if(vin){ if(vin===A.last)A.hits++;else{A.last=vin;A.hits=1}
+        if(C39.vinCheckOk(vin)||A.hits>=2){A.scanning=false;$('aVin').value=vin;aCheck();$('aCamMsg').textContent='VIN read: '+vin;return} }
+      setTimeout(aScanLoop,150);
+    }).catch(function(){setTimeout(aScanLoop,250)});
+  }
+  function openAdd(vin){
+    A.photos.forEach(function(p){URL.revokeObjectURL(p.url)});A.photos=[];aThumbs();aStop();
+    $('aVin').value=vin||'';$('aLoc').value='';$('aNotes').value='';$('aSaveMsg').textContent='';$('aCamMsg').textContent='';aCheck();
+    if(vin) fetch('/api/vehicles/'+vin).then(function(r){return r.ok?r.json():null}).then(function(v){if(v){$('aLoc').value=v.lotLocation||'';$('aNotes').value=v.notes||''}});
+    if(!$('addDlg').open)$('addDlg').showModal();
+  }
+  $('addBtn').onclick=function(){openAdd('')};
+  $('aClose').onclick=function(){aStop();$('addDlg').close()};
+  $('addDlg').addEventListener('close',aStop);
+  $('aVin').addEventListener('input',aCheck);
+  $('aPick').onclick=function(){$('aFiles').value='';$('aFiles').click()};
+  $('aFiles').onchange=function(){aFiles(this.files)};
+  var dz=$('aDrop');
+  ['dragenter','dragover'].forEach(function(e){dz.addEventListener(e,function(ev){ev.preventDefault();dz.classList.add('over')})});
+  ['dragleave','drop'].forEach(function(e){dz.addEventListener(e,function(ev){ev.preventDefault();dz.classList.remove('over')})});
+  dz.addEventListener('drop',function(ev){aFiles(ev.dataTransfer.files)});
+  $('aCamBtn').onclick=function(){aCamStart().then(function(){$('aCamMsg').textContent='Take as many photos as you need'},function(){})};
+  $('aShot').onclick=function(){var v=$('aVideo');if(v.readyState<2||!v.videoWidth)return;toJpeg(v,v.videoWidth,v.videoHeight,1920).then(function(b){if(b)aAddBlob(b)})};
+  $('aScan').onclick=function(){
+    var init=('BarcodeDetector' in window)&&!A.det?window.BarcodeDetector.getSupportedFormats().then(function(f){var w=['code_39','code_128','pdf417','data_matrix','qr_code'].filter(function(x){return f.indexOf(x)>=0});A.det=w.length?new window.BarcodeDetector({formats:w}):false}).catch(function(){A.det=false}):Promise.resolve();
+    init.then(aCamStart).then(function(){A.scanning=true;A.hits=0;A.last=null;$('aCamMsg').textContent='Hold the VIN barcode up to the webcam…';aScanLoop()},function(){});
+  };
+  $('aSave').onclick=function(){
+    if(!aCheck())return;
+    var vin=$('aVin').value,btn=$('aSave'),msg=$('aSaveMsg');btn.disabled=true;msg.textContent='Saving…';
+    fetch('/api/sync/vehicle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vin:vin,notes:$('aNotes').value,lotLocation:$('aLoc').value,capturedAt:new Date().toISOString(),device:'This computer',photos:A.photos.map(function(p){return{id:p.id,takenAt:p.takenAt}})})})
+      .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Failed');return j})})
+      .then(function(res){
+        var miss=res.missingPhotos||[],n=0;
+        return A.photos.filter(function(p){return miss.indexOf(p.id)>=0}).reduce(function(pr,p){
+          return pr.then(function(){return fetch('/api/sync/photo/'+vin+'/'+p.id,{method:'PUT',headers:{'Content-Type':'image/jpeg'},body:p.blob}).then(function(r){if(!r.ok)throw new Error('Photo upload failed');n++;msg.textContent='Saved '+n+' of '+miss.length+' photos…'})});
+        },Promise.resolve());
+      }).then(function(){toast('Saved '+vin);aStop();$('addDlg').close();load()})
+      .catch(function(e){msg.textContent='Error: '+e.message;btn.disabled=false});
+  };
+
+  /* linking panel: one-time code (like WhatsApp Web) + linked phones */
+  var pairTimer=null, cdTimer=null;
+  function fmtCode(c){return c.slice(0,4)+'-'+c.slice(4)}
+  function renderPair(p){
+    var b=$('pairBody');
+    if(!p.httpsReady){b.innerHTML='<p><b>HTTPS certificate could not be created.</b> Install OpenSSL (it comes with Git for Windows) and restart RowSkan. Phones need HTTPS to use the camera.</p>';return}
+    if(!p.urls.length){b.innerHTML='<p>No WiFi/LAN address found. Connect this computer to the same WiFi as the phone, then restart RowSkan.</p>';return}
+    var q=p.qr.map(function(svg,i){return '<div><div class="qr">'+svg+'</div><div class="small mono" style="margin-top:6px;max-width:200px;word-break:break-all">'+esc(p.ips[i])+'</div></div>'}).join('');
+    b.innerHTML=q+'<div><ol>'+
+      '<li>Put the phone on the <b>same WiFi</b> as this computer.</li>'+
+      '<li>Point the phone <b>camera</b> at the QR code and open the link.</li>'+
+      '<li>The phone warns the connection is not private (it is your own computer). Choose <b>Advanced → Continue</b>. <span class="small">Optional: <a href="/ca.crt">install the RowSkan certificate</a> to remove the warning and allow offline use.</span></li>'+
+      '<li>Allow the camera. The phone is linked and keeps its own copy of your inventory.</li></ol>'+
+      '<p>Or type this code on the phone: <span class="key mono">'+esc(fmtCode(p.code))+'</span><br><span class="small" id="cdTxt"></span></p>'+
+      '<p class="small">The code works once and expires in a few minutes; this page makes a new one automatically.</p>'+
+      '<p class="small">Inventory is stored in: <span class="mono">'+esc(p.dataDir)+'</span></p>'+
+      (p.ips.length>1?'<p class="small">Several network addresses were found — use the QR whose address starts like your WiFi (often 192.168.x.x).</p>':'')+'</div>';
+    clearInterval(cdTimer);
+    function tick(){var s=Math.max(0,Math.round((new Date(p.expiresAt)-Date.now())/1000));var e=$('cdTxt');if(e)e.textContent='Expires in '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+    tick();cdTimer=setInterval(tick,1000);
+  }
+  function newCode(){
+    return fetch('/api/pairing/new',{method:'POST'}).then(function(r){return r.json()}).then(function(p){
+      renderPair(p);clearTimeout(pairTimer);
+      pairTimer=setTimeout(newCode,Math.max(10000,new Date(p.expiresAt)-Date.now()-20000));
+    }).catch(function(){});
+  }
+  function loadDevices(){
+    fetch('/api/devices').then(function(r){return r.json()}).then(function(l){
+      var w=$('devList');
+      if(!l.length){w.textContent='No phones linked yet.';return}
+      w.innerHTML=l.map(function(d){return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)"><span style="flex:1"><b style="color:var(--ink)">'+esc(d.name)+'</b> · last seen '+ago(d.lastSeen)+'</span><button data-id="'+esc(d.id)+'" class="danger" style="padding:4px 10px">Unlink</button></div>'}).join('');
+      Array.prototype.forEach.call(w.querySelectorAll('button'),function(btn){btn.onclick=function(){
+        if(!confirm('Unlink this phone? It keeps the photos it already has, but can no longer sync until it is linked again.'))return;
+        fetch('/api/devices/'+btn.dataset.id,{method:'DELETE'}).then(function(){toast('Phone unlinked');loadDevices()});
+      }});
+    });
+  }
+
+  /* live updates */
+  function live(){
+    var es=new EventSource('/events');
+    es.onopen=function(){$('liveDot').classList.add('on');$('liveTxt').textContent='Live'};
+    es.onerror=function(){$('liveDot').classList.remove('on');$('liveTxt').textContent='Reconnecting…'};
+    var t=null;
+    function refresh(vin){flashVin=vin;clearTimeout(t);t=setTimeout(load,250)}
+    es.addEventListener('vehicle',function(e){var d=JSON.parse(e.data);if(!d.deleted)toast('Synced '+d.vin);refresh(d.vin)});
+    es.addEventListener('paired',function(e){toast('Phone linked: '+JSON.parse(e.data).name);newCode();loadDevices()});
+    es.addEventListener('devices',loadDevices);
+    es.addEventListener('photo',function(e){refresh(JSON.parse(e.data).vin)});
+  }
+  /* ---- registration (email + password) + start-up ---- */
+  var booted=false, mode='in';
+  function boot(){
+    if(booted) return; booted=true;
+    load().then(function(){ if(!vehicles.length) $('pair').open=true; });
+    live(); setInterval(render,60000);
+    newCode(); loadDevices(); setInterval(loadDevices,30000);
+  }
+  function show3(which){['regForm','regReset','regSetup'].forEach(function(id){$(id).hidden=(id!==which)}); $('regErr').textContent=''}
+  function setMode(m){
+    mode=m; $('tabUp').classList.toggle('on',m==='up'); $('tabIn').classList.toggle('on',m==='in');
+    $('regGo').textContent=m==='up'?'Create account':'Sign in'; $('regForgot').hidden=(m==='up');
+    $('regPw').autocomplete=m==='up'?'new-password':'current-password';
+    $('regHint').hidden=(m!=='up'); $('regErr').textContent='';
+  }
+  function regPost(path,body){
+    return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.error||'Something went wrong');e.data=j;throw e}return j})});
+  }
+  function pwProblem(pw){ return pw.length<8?'Use at least 8 characters.':null }
+  function regGo(){
+    var em=$('regEmail').value.trim(), pw=$('regPw').value; $('regErr').textContent='';
+    if(!em){$('regErr').textContent='Enter your email address.';return}
+    if(mode==='up'&&pwProblem(pw)){$('regErr').textContent=pwProblem(pw);return}
+    if(!pw){$('regErr').textContent='Enter your password.';return}
+    $('regGo').disabled=true;
+    regPost(mode==='up'?'/api/account/signup':'/api/account/signin',{email:em,password:pw}).then(function(){$('regPw').value='';checkAccount()})
+      .catch(function(e){ if(e.data&&e.data.notConfigured) show3('regSetup'); else $('regErr').textContent=e.message }).then(function(){$('regGo').disabled=false});
+  }
+  $('tabUp').onclick=function(){setMode('up')}; $('tabIn').onclick=function(){setMode('in')};
+  $('regGo').onclick=regGo;
+  ['regEmail','regPw'].forEach(function(id){$(id).addEventListener('keydown',function(e){if(e.key==='Enter')regGo()})});
+  $('regForgot').onclick=function(){show3('regReset');$('rsSent').hidden=true;$('rsEmail').value=$('regEmail').value;$('rsEmail').focus()};
+  $('rsBack').onclick=function(){show3('regForm')};
+  $('rsSend').onclick=function(){
+    var em=$('rsEmail').value.trim(); $('regErr').textContent=''; $('rsSent').hidden=true;
+    if(!em){$('regErr').textContent='Enter your email address.';return}
+    $('rsSend').disabled=true;
+    regPost('/api/account/forgot',{email:em}).then(function(){$('rsSent').hidden=false})
+      .catch(function(e){$('regErr').textContent=e.message}).then(function(){$('rsSend').disabled=false});
+  };
+  function checkAccount(){
+    fetch('/api/account').then(function(r){return r.json()}).then(function(a){
+      if(a.registered){ $('reg').hidden=true; $('acct').textContent='👤 '+a.email; boot(); }
+      else { $('reg').hidden=false; $('regDev').hidden=!a.dev; if(a.configured){show3('regForm');setMode('in');$('regEmail').focus()} else show3('regSetup'); }
+    }).catch(function(){ setTimeout(checkAccount,2000) });
+  }
+  checkAccount();
+})();
+</script>
+</body>
+</html>

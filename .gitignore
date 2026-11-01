@@ -1,0 +1,6 @@
+data/
+node_modules/
+*.bak
+*.keystore
+*.jks
+*.p12

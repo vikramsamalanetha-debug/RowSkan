@@ -31,6 +31,9 @@
       return S.putVeh(v).then(() => { if (cur && cur.vin === v.vin) cur = v; return v; });
     });
   }
+  const isPhone = Net.deviceKind() === 'phone'; // phones capture; only computers may delete
+  let openedDone = false, sessionPhotos = new Set();
+  const canRemovePhoto = (id) => !isPhone || !openedDone || sessionPhotos.has(id); // phone: retake freely until Done, never after
   const live = (v) => !v.deleted;
   const isVin = (x) => /^[A-HJ-NPR-Z0-9]{17}$/.test(x || '');
   const noVinId = () => 'NV' + Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
@@ -156,6 +159,7 @@
   function openVehicle(vinRaw) {
     const vin = String(vinRaw).toUpperCase().replace(/[^A-Z0-9]/g, '');
     return S.getVeh(vin).then((v) => {
+      openedDone = !!(v && v.done && !v.deleted); sessionPhotos = new Set();
       if (!v) v = newRecord(vin);
       else if (v.deleted) { delete v.deleted; v.photos = []; v.done = false; v.capturedAt = Net.nowIso(); Y.stamp(v, ['capturedAt'], v.capturedAt); } // scanned again after being deleted
       cur = v; return commit(v, null);
@@ -182,6 +186,7 @@
       else if (!d.make) msgs.push('The VIN database found no match. Check the VIN, or type the details yourself: ' + (d.errorText || ''));
       if (!C39.vinCheckOk(cur.vin)) msgs.push('VIN check digit does not match — double-check the number.'); }
     $('vehWarn').hidden = !msgs.length; $('vehWarn').textContent = msgs.join(' ');
+    $('vehDel').hidden = isPhone && openedDone;
     $('locIn').value = cur.lotLocation || ''; $('noteIn').value = cur.notes || '';
     ['mYear:year', 'mMake:make', 'mModel:model', 'mTrim:trim'].forEach((p) => { const [id, k] = p.split(':'); if (document.activeElement !== $(id)) $(id).value = (d && d[k]) || ''; });
     if (!isVin(cur.vin) || (d && d.manual)) $('manDet').open = true;
@@ -196,7 +201,7 @@
       const x = () => { const b = document.createElement('button'); b.className = 'x'; b.textContent = '×'; b.setAttribute('aria-label', 'Delete photo'); b.onclick = () => removePhoto(p.id); box.appendChild(b); };
       S.getPhoto(p.id).then((rec) => {
         if (rec && rec.blob) { const u = URL.createObjectURL(rec.blob); urls.push(u); box.innerHTML = '<img src="' + u + '" alt="">'; } else box.innerHTML = '<div class="small" style="padding:10px 4px;text-align:center">on another device</div>';
-        x();
+        if (canRemovePhoto(p.id)) x();
       });
       strip.appendChild(box);
     });
@@ -209,6 +214,7 @@
   }
   function savePhotoBlob(blob) {
     const veh = cur; if (!veh) return Promise.resolve(); const id = rid();
+    sessionPhotos.add(id);
     return S.putPhoto({ id, vin: veh.vin, blob }).then(() => { veh.photos.push({ id, takenAt: Net.nowIso() }); veh.u = Net.nowIso(); return commit(veh, null); }).then(() => { if (cur && cur.vin === veh.vin) renderStrip(); });
   }
   function fileToJpeg(f) {
@@ -531,6 +537,8 @@
     if ((prompt('Type DELETE to confirm') || '').trim().toUpperCase() !== 'DELETE') return;
     Net.deleteAccount().catch((e) => toast(e.message));
   };
+
+  if (isPhone) ['bulkDel', 'sDel'].forEach((id) => { $(id).hidden = true; });
 
   /* ---------------------------------------------------------------- start */
   function readLinkHash() { const r = Net.parseLink(location.hash); if (r) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ } } return r; }

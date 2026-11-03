@@ -318,7 +318,7 @@
     CFG: CFG, wire: wire, on: on, passwordProblem: passwordProblem, loadMeta: loadMeta, signUp: signUp, signIn: signIn, sendReset: sendReset,
     account: function () { return acct; }, hasKey: function () { return !!meta.key; }, setName: setName, deviceName: function () { return meta.name; }, deviceId: function () { return meta.deviceId; },
     start: start, stop: stop, syncNow: cycle, kickSoon: kickSoon, status: function () { return Object.assign({}, st); }, nowIso: nowIso,
-    boost: boost, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink,
+    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink,
     listDevices: listDevices, removeDevice: removeDevice, signOut: signOut, deleteAccount: deleteAccount, relayConfigured: configured
   };
 })();

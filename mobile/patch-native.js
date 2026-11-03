@@ -11,4 +11,9 @@ if (which === 'android') {
   add('NSCameraUsageDescription', 'RowSkan uses the camera to scan VIN barcodes and take photos of your vehicles.');
   add('NSPhotoLibraryUsageDescription', 'RowSkan lets you pick existing photos of a vehicle from your library.');
   fs.writeFileSync(f, x); console.log('Info.plist patched');
+  // Apple requires iOS 15+ from April 2027
+  const pj = path.join(__dirname, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj'), pf = path.join(__dirname, 'ios', 'App', 'Podfile');
+  if (fs.existsSync(pj)) fs.writeFileSync(pj, fs.readFileSync(pj, 'utf8').replace(/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/g, 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;'));
+  if (fs.existsSync(pf)) fs.writeFileSync(pf, fs.readFileSync(pf, 'utf8').replace(/platform :ios, '[0-9.]+'/, "platform :ios, '15.0'"));
+  console.log('iOS deployment target set to 15.0');
 } else { console.error('usage: node patch-native.js android|ios'); process.exit(1); }

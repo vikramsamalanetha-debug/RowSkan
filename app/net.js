@@ -104,7 +104,7 @@
   /* ------------------------------------------------------------ vehicle records on the wire */
   function wire(v) {
     var r = { vin: v.vin, photos: (v.photos || []).map(function (p) { return { id: p.id, takenAt: p.takenAt }; }), removed: v.removed || [], f: v.f || {}, u: v.u };
-    ['decoded', 'notes', 'lotLocation', 'capturedAt'].forEach(function (k) { if (v[k] !== undefined && v[k] !== null) r[k] = v[k]; });
+    ['decoded', 'notes', 'lotLocation', 'capturedAt', 'sold'].forEach(function (k) { if (v[k] !== undefined && v[k] !== null) r[k] = v[k]; });
     if (v.deletedAt) { r.deletedAt = v.deletedAt; } if (v.deleted) r.deleted = true;
     return r;
   }

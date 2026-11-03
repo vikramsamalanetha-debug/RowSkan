@@ -180,6 +180,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
   <div class="body wrap">
     <div class="row wrapbtn"><button class="primary" id="newVeh" style="min-height:64px">📷 Scan or add a vehicle</button></div>
     <input type="search" id="q" placeholder="Search VIN, make, model, lot spot, notes" autocomplete="off">
+    <div class="row" id="soldTabs" style="margin:8px 0"><button class="dsm primary" id="tabAct" style="flex:1">Active</button><button class="dsm" id="tabSold" style="flex:1">Sold</button></div>
     <div class="card" id="syncCard"><div class="toggle"><div><b id="pendTxt">Nothing waiting</b><div class="small" id="syncMsg"></div></div>
       <button id="syncNow" style="flex:none">Sync now</button></div></div>
     <div class="desk" id="desk">
@@ -203,7 +204,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
           <div id="sDec" class="kv"></div>
           <input class="free" id="sLot" placeholder="Lot location" maxlength="40"><textarea id="sNote" rows="3" placeholder="Notes" maxlength="300"></textarea>
           <div class="row"><button class="primary dsm" id="sSave" style="font-size:15px">Save</button><button class="dsm" id="sOpen">Open / add photos</button></div>
-          <button class="dsm" id="sDel" style="color:var(--bad)">Delete vehicle</button>
+          <button class="dsm" id="sSold">Mark sold</button><button class="dsm" id="sShare">Share</button><button class="dsm" id="sDel" style="color:var(--bad)">Delete vehicle</button>
         </aside>
       </div>
     </div>
@@ -249,6 +250,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
     <div class="strip" id="strip"></div>
     <input type="text" class="free" id="locIn" placeholder="Lot spot / row (optional)" maxlength="60">
     <input type="text" class="free" id="noteIn" placeholder="Notes (optional)" maxlength="300">
+    <div class="row"><button id="vehSold">Mark as sold</button><button id="vehShare">Share…</button></div>
     <input type="file" id="fileIn" accept="image/*" multiple hidden>
     <input type="file" id="fileScan" accept="image/*" hidden>
   </div>
@@ -262,6 +264,8 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
     <div class="card"><b>Account</b><div class="small" id="setAcct" style="margin-top:4px"></div></div>
     <div class="card"><b>Your devices</b><div class="small" style="margin:4px 0 6px">Each device keeps its own copy and they sync in the background when online.</div><div id="devList" class="small">…</div>
       <button id="addDev" style="width:100%;margin-top:10px">＋ Add a device (scan its code)</button></div>
+    <div class="card"><b>Backup</b><div class="small" style="margin:4px 0 8px">Save a copy of your vehicles and photos as a file (put it in iCloud Drive, Google Drive or email it to yourself). The file is not encrypted, so keep it somewhere private. Restoring adds to what is already here and never deletes anything.</div>
+      <div class="row"><button id="bkSave">Save backup file</button><button id="bkLoad">Restore from file</button></div><input type="file" id="bkFile" accept=".json,application/json" hidden></div>
     <div class="card"><b>On this device</b><div class="small" id="setStore" style="margin-top:4px"></div>
       <label class="small" style="display:block;margin-top:10px">Name of this device</label><input type="text" class="free" id="devName" maxlength="40"></div>
     <button id="signOut" class="ghost">Sign out and remove data from this device</button>

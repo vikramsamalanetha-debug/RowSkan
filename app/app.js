@@ -186,7 +186,7 @@
       else if (!d.make) msgs.push('The VIN database found no match. Check the VIN, or type the details yourself: ' + (d.errorText || ''));
       if (!C39.vinCheckOk(cur.vin)) msgs.push('VIN check digit does not match — double-check the number.'); }
     $('vehWarn').hidden = !msgs.length; $('vehWarn').textContent = msgs.join(' ');
-    $('vehDel').hidden = isPhone && openedDone;
+    $('vehDel').hidden = isPhone && openedDone; $('vehSold').textContent = cur.sold ? 'Reopen (not sold)' : 'Mark as sold';
     $('locIn').value = cur.lotLocation || ''; $('noteIn').value = cur.notes || '';
     ['mYear:year', 'mMake:make', 'mModel:model', 'mTrim:trim'].forEach((p) => { const [id, k] = p.split(':'); if (document.activeElement !== $(id)) $(id).value = (d && d[k]) || ''; });
     if (!isVin(cur.vin) || (d && d.manual)) $('manDet').open = true;
@@ -263,7 +263,7 @@
   };
 
   /* ---------------------------------------------------------------- home */
-  let thumbUrls = [], searchText = '';
+  let thumbUrls = [], searchText = '', soldView = false;
   function matches(v, q) {
     if (!q) return true; const d = v.decoded || {};
     const hay = [v.vin, d.year, d.make, d.model, d.trim, d.bodyClass, v.lotLocation, v.notes].join(' ').toLowerCase();
@@ -272,7 +272,7 @@
   function refreshHome() {
     return S.allVeh().then((all) => {
       const list = all.filter(live); list.sort((a, b) => String(b.capturedAt || '').localeCompare(String(a.capturedAt || '')));
-      const shown = list.filter((v) => matches(v, searchText));
+      const act = list.filter((v) => !!v.sold === soldView), shown = act.filter((v) => matches(v, searchText));
       const wrap = $('list'); wrap.innerHTML = ''; thumbUrls.forEach((u) => URL.revokeObjectURL(u)); thumbUrls = [];
       shown.forEach((v) => {
         const b = document.createElement('button'); b.className = 'vcard card';
@@ -282,8 +282,9 @@
         if (first) S.getPhoto(first.id).then((r) => { if (r && r.blob) { const u = URL.createObjectURL(r.blob); thumbUrls.push(u); b.querySelector('img').src = u; } });
         b.onclick = () => openVehicle(v.vin); wrap.appendChild(b);
       });
-      $('emptyMsg').hidden = shown.length > 0; $('emptyMsg').innerHTML = list.length ? 'No vehicle matches that search.' : (Net.hasKey() && Net.relayConfigured() && Net.status().state === 'ok' ? 'No vehicles here yet. If you already have vehicles on your phone, open RowSkan there — they arrive within about a minute (then tap <b>Sync now</b>).<br>Or add or import vehicles below.' : 'No vehicles yet. Tap <b>Scan or add a vehicle</b>, or import a list below.');
-      renderDesk(list);
+      $('emptyMsg').hidden = shown.length > 0; $('emptyMsg').innerHTML = act.length ? 'No vehicle matches that search.' : soldView ? 'No sold vehicles yet. Open a vehicle and tap “Mark as sold”.' : list.length ? 'No active vehicles. Everything is marked sold.' : (Net.hasKey() && Net.relayConfigured() && Net.status().state === 'ok' ? 'No vehicles here yet. If you already have vehicles on your phone, open RowSkan there — they arrive within about a minute (then tap <b>Sync now</b>).<br>Or add or import vehicles below.' : 'No vehicles yet. Tap <b>Scan or add a vehicle</b>, or import a list below.');
+      renderDesk(act);
+      $('tabAct').classList.toggle('primary', !soldView); $('tabSold').classList.toggle('primary', soldView); $('tabSold').textContent = 'Sold (' + list.filter((v) => v.sold).length + ')'; $('tabAct').textContent = 'Active (' + list.filter((v) => !v.sold).length + ')';
       const pend = list.filter((v) => v.done && v.dirty).length;
       $('pendTxt').textContent = list.length + (list.length === 1 ? ' vehicle' : ' vehicles') + (pend && Net.relayConfigured() ? ' · ' + pend + ' waiting to sync' : '');
       return pend;
@@ -420,6 +421,61 @@
   $('sSave').onclick = () => S.getVeh(sideVin).then((v) => { if (!v) return; const f = [], loc = $('sLot').value.trim(), nt = $('sNote').value.trim(); if (loc !== (v.lotLocation || '')) { v.lotLocation = loc; f.push('lotLocation'); } if (nt !== (v.notes || '')) { v.notes = nt; f.push('notes'); } return (f.length ? commit(v, f) : Promise.resolve()).then(() => { toast('Saved'); Net.kickSoon(); refreshHome(); }); });
   $('sOpen').onclick = () => openVehicle(sideVin);
   $('sDel').onclick = () => { if (!confirm('Delete this vehicle and its photos from all your devices?')) return; S.getVeh(sideVin).then((v) => Promise.all(v.photos.map((p) => S.delPhoto(p.id))).then(() => { v.deleted = true; v.deletedAt = Net.nowIso(); v.photos = []; v.done = true; return commit(v, null); })).then(() => { sel.delete(sideVin); closeSide(); Net.kickSoon(); refreshHome(); }); };
+
+
+  /* ---------------------------------------------------------------- sold, share, backup (work on phones too) */
+  function setSold(v, on) { v.sold = on ? Net.nowIso() : ''; return commit(v, ['sold']); }
+  $('tabAct').onclick = () => { soldView = false; refreshHome(); };
+  $('tabSold').onclick = () => { soldView = true; refreshHome(); };
+  $('vehSold').onclick = () => { if (!cur) return; const on = !cur.sold; saveText().then(() => setSold(cur, on)).then((v) => { cur = v || cur; toast(on ? 'Marked as sold' : 'Back in active list'); if (on) { stopCamera(); const vin = cur.vin; cur = null; Net.kickSoon(); goHome(); } else renderVehicle(); }); };
+  $('sSold').onclick = () => S.getVeh(sideVin).then((v) => { if (!v) return; const on = !v.sold; return setSold(v, on).then(() => { toast(on ? 'Marked as sold' : 'Back in active list'); Net.kickSoon(); closeSide(); refreshHome(); }); });
+  function vehText(v) {
+    const d = v.decoded || {}, l = [title(v) || 'Vehicle', (isVin(v.vin) ? 'VIN ' : 'ID ') + v.vin];
+    [['Trim', d.trim], ['Body', d.bodyClass], ['Drive', d.driveType], ['Fuel', d.fuel], ['Location', v.lotLocation], ['Notes', v.notes]].forEach((x) => { if (x[1]) l.push(x[0] + ': ' + x[1]); });
+    return l.join('\n');
+  }
+  function shareVehicle(vin) {
+    return S.getVeh(vin).then((v) => {
+      if (!v) return;
+      return Promise.all(v.photos.slice(0, 10).map((p) => S.getPhoto(p.id))).then((recs) => {
+        const files = recs.filter((r) => r && r.blob).map((r, i) => new File([r.blob], vin.slice(-6) + '-' + (i + 1) + '.jpg', { type: 'image/jpeg' })), text = vehText(v);
+        const data = { title: title(v) || 'Vehicle', text }; 
+        if (files.length && navigator.canShare && navigator.canShare({ files })) data.files = files;
+        if (navigator.share) return navigator.share(data).catch((e) => { if (e && e.name !== 'AbortError') throw e; });
+        return (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Details copied — paste them into a message'));
+      });
+    }).catch(() => toast('Could not share from this device'));
+  }
+  $('vehShare').onclick = () => { if (cur) saveText().then(() => shareVehicle(cur.vin)); };
+  $('sShare').onclick = () => { if (sideVin) shareVehicle(sideVin); };
+  const b64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+  $('bkSave').onclick = () => {
+    $('bkSave').disabled = true; const parts = ['{"app":"RowSkan","format":1,"saved":"' + new Date().toISOString() + '","vehicles":['];
+    S.allVeh().then((all) => all.filter(live).reduce((p, v, i) => p.then(() => Promise.all(v.photos.map((ph) => S.getPhoto(ph.id).then((r) => r && r.blob ? b64(r.blob).then((d) => ({ id: ph.id, d })) : null))).then((ph) => {
+      parts.push((i ? ',' : '') + JSON.stringify({ rec: wire(v), photos: ph.filter(Boolean) }));
+    })), Promise.resolve()).then(() => all.filter(live).length)).then((n) => {
+      parts.push(']}'); const blob = new Blob(parts, { type: 'application/json' }), name = 'rowskan-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      const f = new File([blob], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) return navigator.share({ files: [f], title: name }).catch((e) => { if (e && e.name !== 'AbortError') throw e; }).then(() => toast('Backup of ' + n + ' vehicles ready'));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); toast('Backup saved (' + n + ' vehicles)');
+    }).catch(() => toast('Backup failed')).then(() => { $('bkSave').disabled = false; });
+  };
+  $('bkLoad').onclick = () => { $('bkFile').value = ''; $('bkFile').click(); };
+  $('bkFile').onchange = function () {
+    const f = this.files && this.files[0]; if (!f) return;
+    f.text().then((t) => {
+      const j = JSON.parse(t); if (!j || j.app !== 'RowSkan' || !Array.isArray(j.vehicles)) throw new Error('bad');
+      let n = 0;
+      return j.vehicles.reduce((p, it) => p.then(() => {
+        const r = it.rec; if (!r || !/^[A-Z0-9]{3,20}$/.test(String(r.vin))) return;
+        return (it.photos || []).reduce((q, ph) => q.then(() => S.getPhoto(ph.id).then((have) => { if (have || !/^[\w-]{1,64}$/.test(String(ph.id))) return; const bin = atob(ph.d), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return S.putPhoto({ id: ph.id, vin: r.vin, blob: new Blob([u], { type: 'image/jpeg' }) }); })), Promise.resolve()).then(() => S.getVeh(r.vin)).then((local) => {
+          const m = Y.mergeRecords(local ? wire(local) : null, Object.assign({}, r, { deleted: undefined }));
+          const v = Object.assign({}, local || {}, m); delete v.deleted; v.done = true; v.sent = []; n++;
+          return commit(v, null);
+        });
+      }), Promise.resolve()).then(() => { toast('Restored ' + n + ' vehicles'); Net.kickSoon(); openSettings(); });
+    }).catch(() => toast('That file is not a RowSkan backup'));
+  };
 
   /* ---------------------------------------------------------------- connection pill */
   function renderConn() {

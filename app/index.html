@@ -245,8 +245,11 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
       <div id="vehDecoded" class="kv" style="margin-top:8px"></div>
       <div class="banner" id="vehWarn" hidden style="margin-top:8px"></div></div>
     <details class="card" id="manDet"><summary style="cursor:pointer;font-weight:600">Vehicle details <span class="small">(type them in if there is no VIN lookup)</span></summary>
-      <div class="row" style="margin-top:8px"><input type="text" class="free" id="mYear" placeholder="Year" inputmode="numeric" maxlength="4"><input type="text" class="free" id="mMake" placeholder="Make" maxlength="30"></div>
-      <div class="row" style="margin-top:8px"><input type="text" class="free" id="mModel" placeholder="Model" maxlength="40"><input type="text" class="free" id="mTrim" placeholder="Trim / color (optional)" maxlength="40"></div></details>
+      <div class="row" style="margin-top:8px"><div style="flex:1;min-width:0"><select id="sYear" aria-label="Year" style="width:100%"></select><input type="text" class="free" id="mYear" placeholder="Year" inputmode="numeric" maxlength="4" hidden style="margin-top:6px"></div>
+        <div style="flex:1;min-width:0"><select id="sMake" aria-label="Make" style="width:100%"></select><input type="text" class="free" id="mMake" placeholder="Make" maxlength="30" hidden style="margin-top:6px"></div></div>
+      <div class="row" style="margin-top:8px"><div style="flex:1;min-width:0"><select id="sModel" aria-label="Model" style="width:100%"></select><input type="text" class="free" id="mModel" placeholder="Model" maxlength="40" hidden style="margin-top:6px"></div>
+        <input type="text" class="free" id="mTrim" placeholder="Trim / color (optional)" maxlength="40" style="flex:1;min-width:0"></div>
+      <div class="small" id="manNote" style="margin-top:6px"></div></details>
     <div class="cam" id="photoCam"><video id="photoVideo" playsinline muted autoplay></video><div class="hint" id="photoHint"></div></div>
     <div class="row" style="align-items:center"><div class="small" id="photoCount" style="flex:1"></div>
       <button class="shutter" id="shutter" aria-label="Take photo"></button>
@@ -311,6 +314,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 <script src="config.js"></script>
 <script src="qr.js"></script>
 <script src="code39.js"></script>
+<script src="vinlocal.js"></script>
 <script src="sync.js"></script>
 <script src="store.js"></script>
 <script src="fsrelay.js"></script>

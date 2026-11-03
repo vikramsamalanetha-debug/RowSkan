@@ -99,7 +99,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     await A.click('#tabSold'); ok(await vis(A, '.vcard') && await A.$$eval('.vcard', l => l.length) === 1, 'Sold tab shows it');
     await A.click('.vcard'); await on(A, 'sVeh'); ok((await A.textContent('#vehSold')).includes('Reopen'), 'button now says Reopen');
     await A.click('#vehSold'); await sleep(600); await A.click('#vehBack'); await on(A, 'sHome'); await A.click('#tabAct');
-    ok(await vis(A, '#tabSold:has-text("Sold (0)")') && await A.$$eval('.vcard', l => l.length) === 2, 'reopened vehicle is active again');
+    await sleep(800); ok(await vis(A, '#tabSold:has-text("Sold (0)")') && await A.$$eval('.vcard', l => l.length) === 2, 'reopened vehicle is active again');
     await A.click('.vcard:first-child'); await on(A, 'sVeh'); await A.click('#vehSold'); await on(A, 'sHome');
     // share fallback (no navigator.share in headless): text is copied
     await A.evaluate(() => { window.__copied = ''; Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__copied = t; return Promise.resolve(); } }, configurable: true }); });

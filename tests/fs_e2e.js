@@ -116,7 +116,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     await A.click('#setBack'); await on(A, 'sHome'); await A.click('#syncNow'); await sleep(1500); await A.click('.vcard:has-text("Camry")'); await on(A, 'sVeh');
     ok(await (async () => { for (let i = 0; i < 20; i++) { if ((await A.inputValue('#noteIn')) === 'Needs detail') return true; await sleep(400); } return false; })(), 'note typed on the computer reaches the phone');
     await A.click('#vehBack'); await on(A, 'sHome');
-    await A.click('#newVeh'); await on(A, 'sScan'); await A.fill('#vinIn', 'F100-1962'); await A.click('#vinGo'); await on(A, 'sVeh'); await A.fill('#mMake', 'Ford'); await A.fill('#mModel', 'F-100'); await A.fill('#mYear', '1962');
+    await A.click('#newVeh'); await on(A, 'sScan'); await A.fill('#vinIn', 'F100-1962'); await A.click('#vinGo'); await on(A, 'sVeh'); await A.selectOption('#sMake', 'Ford'); await A.selectOption('#sModel', '__o'); await A.fill('#mModel', 'F-100'); await A.selectOption('#sYear', '1962');
     await A.setInputFiles('#fileIn', [{ name: 'c.png', mimeType: 'image/png', buffer: PNG }]); await vis(A, '#photoCount:has-text("1 photo")'); await A.click('#vehDone'); await on(A, 'sScan'); await A.click('#scanBack'); await on(A, 'sHome');
     await sleep(1200); await B.click('#dSync'); ok(await vis(B, '#tb tr:has-text("F1001962")', 15000), 'serial-number vehicle syncs to the computer');
 

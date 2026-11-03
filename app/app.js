@@ -142,13 +142,16 @@
       .then((j) => { const row = (j.Results || [])[0] || {}, d = {}; Object.keys(NHTSA).forEach((k) => { const x = row[NHTSA[k]]; if (x !== undefined && x !== null && String(x).trim() !== '') d[k] = String(x).trim(); }); d.source = 'NHTSA vPIC'; d.decodedAt = new Date().toISOString(); return d; });
   }
   function decodeInto(vin) { if (!isVin(vin)) return Promise.resolve(); // look the details up and store them (no matter which screen is open)
-    return decodeVin(vin).then((d) => S.getVeh(vin).then((v) => { if (!v) return; v.decoded = Object.assign({}, v.decoded || {}, d); return commit(v, ['decoded']); }));
+    return decodeVin(vin).then((d) => S.getVeh(vin).then((v) => { if (!v) return; const nd = Object.assign({}, v.decoded || {}, d); if (d.make) { delete nd.partial; delete nd.country; } else Object.assign(nd, localFill(vin, nd)); v.decoded = nd; return commit(v, ['decoded']); }), (e) => applyLocal(vin).then(() => { throw e; }));
   }
+  // what the VIN says by itself (maker, year, country) - used when the vehicle database has no answer or there is no connection
+  function localFill(vin, d) { const l = window.VinLocal && VinLocal.decode(vin), o = {}; if (!l) return o; ['make', 'year', 'country'].forEach((k) => { if (!d[k] && l[k]) o[k] = l[k]; }); if (Object.keys(o).length) { o.partial = true; o.source = 'Read from the VIN (basic)'; } return o; }
+  function applyLocal(vin) { return S.getVeh(vin).then((v) => { if (!v || (v.decoded && v.decoded.make)) return; const o = localFill(vin, v.decoded || {}); if (!Object.keys(o).length) return; v.decoded = Object.assign({}, v.decoded || {}, o); return commit(v, ['decoded']); }); }
 
   let decoding = false;
   function decodePending() { // vehicles captured offline get their details as soon as a connection exists
     if (decoding || !navigator.onLine) return; decoding = true;
-    S.allVeh().then((all) => all.filter((v) => live(v) && isVin(v.vin) && !(v.decoded && v.decoded.make) && !(v.decoded && v.decoded.errorText)).reduce((p, v) => p.then(() => decodeInto(v.vin).catch(() => { })), Promise.resolve()))
+    S.allVeh().then((all) => all.filter((v) => live(v) && isVin(v.vin) && (!(v.decoded && v.decoded.make) || (v.decoded.partial && !v.decoded.errorText)) && !(v.decoded && v.decoded.errorText && !v.decoded.partial)).reduce((p, v) => p.then(() => decodeInto(v.vin).catch(() => { })), Promise.resolve()))
       .then(() => { decoding = false; if (current === 'sHome') refreshHome(); Net.kickSoon(); }, () => { decoding = false; });
   }
   window.addEventListener('online', () => setTimeout(decodePending, 500));
@@ -183,15 +186,47 @@
     const msgs = [];
     if (!isVin(cur.vin)) { if (!(d && d.make)) msgs.push('No VIN to look up — type the year, make and model under “Vehicle details”.'); }
     else { if (!d) msgs.push('Looking up vehicle details… (if you are offline they are filled in automatically later)');
+      else if (d.partial) msgs.push('Only the basics could be read from the VIN' + (d.country ? ' (made in ' + d.country + ')' : '') + '. Choose the model below' + (d.errorText ? '.' : ' — more details fill in when a match is found online.'));
       else if (!d.make) msgs.push('The VIN database found no match. Check the VIN, or type the details yourself: ' + (d.errorText || ''));
       if (!C39.vinCheckOk(cur.vin)) msgs.push('VIN check digit does not match — double-check the number.'); }
     $('vehWarn').hidden = !msgs.length; $('vehWarn').textContent = msgs.join(' ');
     $('vehDel').hidden = isPhone && openedDone; $('vehSold').textContent = cur.sold ? 'Reopen (not sold)' : 'Mark as sold';
     $('locIn').value = cur.lotLocation || ''; $('noteIn').value = cur.notes || '';
     ['mYear:year', 'mMake:make', 'mModel:model', 'mTrim:trim'].forEach((p) => { const [id, k] = p.split(':'); if (document.activeElement !== $(id)) $(id).value = (d && d[k]) || ''; });
-    if (!isVin(cur.vin) || (d && d.manual)) $('manDet').open = true;
+    if (!isVin(cur.vin) || (d && (d.manual || d.partial))) $('manDet').open = true;
+    syncPickers();
     renderStrip();
   }
+
+  /* ---------------------------------------------------------------- year / make / model lists */
+  const MAKES = ['Acura', 'Alfa Romeo', 'Aston Martin', 'Audi', 'Bentley', 'BMW', 'Buick', 'BYD', 'Cadillac', 'Chery', 'Chevrolet', 'Chrysler', 'Citroën', 'Dacia', 'Daewoo', 'Daihatsu', 'Dodge', 'DS', 'Ferrari', 'Fiat', 'Ford', 'Freightliner', 'Genesis', 'Geely', 'GMC', 'Great Wall', 'Harley-Davidson', 'Holden', 'Honda', 'Hummer', 'Hyundai', 'Infiniti', 'International', 'Isuzu', 'Iveco', 'Jaguar', 'Jeep', 'Kawasaki', 'Kenworth', 'Kia', 'Lamborghini', 'Lancia', 'Land Rover', 'Lexus', 'Lincoln', 'Lotus', 'Mack', 'Mahindra', 'Maserati', 'Mazda', 'McLaren', 'Mercedes-Benz', 'Mercury', 'MG', 'Mini', 'Mitsubishi', 'Nissan', 'Oldsmobile', 'Opel', 'Peterbilt', 'Peugeot', 'Plymouth', 'Polestar', 'Pontiac', 'Porsche', 'Ram', 'Renault', 'Rivian', 'Rolls-Royce', 'Rover', 'Saab', 'Saturn', 'Scion', 'SEAT', 'Škoda', 'Smart', 'SsangYong', 'Subaru', 'Suzuki', 'Tata', 'Tesla', 'Toyota', 'Volkswagen', 'Volvo', 'Yamaha'];
+  const YEARS = (() => { const a = [], n = new Date().getFullYear() + 1; for (let y = n; y >= 1950; y--) a.push(String(y)); return a; })();
+  const modelCache = {}; let modelItems = [], modelKey = '';
+  function setPicker(selId, inId, items, ph) { // a drop-down with "Other…" that reveals a typing box; the box is what gets saved
+    const sel = $(selId), inp = $(inId), val = inp.value.trim(), wasOther = sel.value === '__o', hit = items.find((x) => x.toLowerCase() === val.toLowerCase());
+    sel.innerHTML = '<option value="">' + ph + '</option>' + items.map((x) => '<option>' + esc(x) + '</option>').join('') + '<option value="__o">Other / type it…</option>';
+    if (!val && wasOther) { sel.value = '__o'; inp.hidden = false; } else if (!val) { sel.value = ''; inp.hidden = true; } else if (hit) { sel.value = hit; inp.value = hit; inp.hidden = true; } else { sel.value = '__o'; inp.hidden = false; }
+  }
+  function wirePicker(selId, inId, after) {
+    const go = () => saveText().then(() => { if (after) after(); });
+    $(selId).onchange = function () { const inp = $(inId); if (this.value === '__o') { inp.hidden = false; inp.focus(); } else { inp.value = this.value; inp.hidden = true; go(); } };
+    $(inId).addEventListener('change', go);
+  }
+  function loadModels() {
+    const make = $('mMake').value.trim(), yr = $('mYear').value.trim().replace(/\D/g, ''), key = make.toLowerCase() + '|' + yr;
+    const show = (items) => { if (key !== modelKey) return; modelItems = items; setPicker('sModel', 'mModel', items, '— Model —'); if (!items.length && make && !$('mModel').value) { $('sModel').value = '__o'; $('mModel').hidden = false; } };
+    modelKey = key; if (!make) return show([]);
+    if (modelCache[key]) return show(modelCache[key]);
+    show([]); if (!navigator.onLine) return;
+    const url = (CFG.nhtsaBase || 'https://vpic.nhtsa.dot.gov') + '/api/vehicles/' + (yr.length === 4 ? 'GetModelsForMakeYear/make/' + encodeURIComponent(make) + '/modelyear/' + yr : 'GetModelsForMake/' + encodeURIComponent(make)) + '?format=json';
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
+    fetch(url, { signal: ctl.signal }).then((r) => { clearTimeout(t); return r.json(); }).then((j) => {
+      const items = Array.from(new Set((j.Results || []).map((r) => String(r.Model_Name || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      modelCache[key] = items; show(items);
+    }).catch(() => { });
+  }
+  function syncPickers() { setPicker('sYear', 'mYear', YEARS, '— Year —'); setPicker('sMake', 'mMake', MAKES, '— Make —'); loadModels(); const d = cur && cur.decoded; $('manNote').textContent = d && d.partial ? 'Read from the VIN: ' + [d.make, d.year, d.country].filter(Boolean).join(' · ') : ''; }
+  wirePicker('sYear', 'mYear', loadModels); wirePicker('sMake', 'mMake', loadModels); wirePicker('sModel', 'mModel', null);
   function renderStrip() {
     urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
     const strip = $('strip'); strip.innerHTML = '';
@@ -243,7 +278,7 @@
     if (loc !== (cur.lotLocation || '')) { cur.lotLocation = loc; fields.push('lotLocation'); }
     if (notes !== (cur.notes || '')) { cur.notes = notes; fields.push('notes'); }
     const man = { year: $('mYear').value.trim().replace(/\D/g, '').slice(0, 4), make: $('mMake').value.trim(), model: $('mModel').value.trim(), trim: $('mTrim').value.trim() }, od = cur.decoded || {};
-    if (Object.keys(man).some((k) => man[k] !== (od[k] || ''))) { const nd = Object.assign({}, od); Object.keys(man).forEach((k) => { if (man[k]) nd[k] = man[k]; else delete nd[k]; }); nd.manual = true; nd.source = nd.source || 'Entered by hand'; cur.decoded = nd; fields.push('decoded'); }
+    if (Object.keys(man).some((k) => man[k] !== (od[k] || ''))) { const nd = Object.assign({}, od); Object.keys(man).forEach((k) => { if (man[k]) nd[k] = man[k]; else delete nd[k]; }); nd.manual = true; delete nd.partial; nd.source = nd.source || 'Entered by hand'; cur.decoded = nd; fields.push('decoded'); }
     return fields.length ? commit(cur, fields) : Promise.resolve();
   }
   function leaveVehicle() { stopCamera(); return S.getVeh(cur.vin).then((f) => { if (f) { f.done = true; return commit(Object.assign(f, { photos: f.photos }), null); } }); }
@@ -263,7 +298,7 @@
   };
 
   /* ---------------------------------------------------------------- home */
-  let thumbUrls = [], searchText = '', soldView = false;
+  let thumbUrls = [], searchText = '', soldView = false, lastHomeSig = '';
   function matches(v, q) {
     if (!q) return true; const d = v.decoded || {};
     const hay = [v.vin, d.year, d.make, d.model, d.trim, d.bodyClass, v.lotLocation, v.notes].join(' ').toLowerCase();
@@ -273,6 +308,11 @@
     return S.allVeh().then((all) => {
       const list = all.filter(live); list.sort((a, b) => String(b.capturedAt || '').localeCompare(String(a.capturedAt || '')));
       const act = list.filter((v) => !!v.sold === soldView), shown = act.filter((v) => matches(v, searchText));
+      // nothing visible changed (e.g. a background sync check found nothing new): leave the page alone so it does not flicker
+      const sig = [searchText, soldView, $('fMake').value, $('fYear').value, $('fLot').value, $('fStat').value, sortBy.k, sortBy.d, Array.from(sel).sort().join(','), sideVin, window.matchMedia('(min-width:900px)').matches, !list.length && Net.hasKey() && Net.relayConfigured() && Net.status().state === 'ok',
+        list.map((v) => [v.vin, v.rev, v.u, v.dirty, v.done, v.sold, v.photos.length, v.lotLocation, v.notes, v.decoded && v.decoded.make, v.decoded && v.decoded.model].join(':')).join('|')].join('#');
+      if (sig === lastHomeSig) return list.filter((v) => v.done && v.dirty).length;
+      lastHomeSig = sig;
       const wrap = $('list'); wrap.innerHTML = ''; thumbUrls.forEach((u) => URL.revokeObjectURL(u)); thumbUrls = [];
       shown.forEach((v) => {
         const b = document.createElement('button'); b.className = 'vcard card';

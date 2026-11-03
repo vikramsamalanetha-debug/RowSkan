@@ -1,0 +1,8 @@
+{
+  "appId": "net.litamerica.rowskan",
+  "appName": "RowSkan",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "ios": { "contentInset": "always" },
+  "android": { "allowMixedContent": false }
+}

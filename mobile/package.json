@@ -1,0 +1,18 @@
+{
+  "name": "rowskan-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RowSkan phone apps (Android and iPhone) - the web app in app/ wrapped with Capacitor. A product of LIT America (www.litamerica.net).",
+  "scripts": {
+    "prepare-web": "node prepare.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  }
+}

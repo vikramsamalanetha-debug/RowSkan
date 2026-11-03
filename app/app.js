@@ -553,7 +553,7 @@
   }
   window.addEventListener('hashchange', () => { const r = readLinkHash(); if (!r) return; if (Net.account() && Net.hasKey()) startApprove(r); else pendingApproval = r; });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => { });
+  if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.Capacitor) navigator.serviceWorker.register('sw.js').catch(() => { });
   S.ready.then(boot).catch(() => { document.body.innerHTML = '<p style="padding:20px">This browser blocked on-device storage (private mode?). Open RowSkan in a normal tab.</p>'; });
   window.__rowskan = { openVehicle, allVeh: S.allVeh, net: Net, S, Y, refreshHome };
 })();

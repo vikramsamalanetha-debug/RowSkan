@@ -1,0 +1,63 @@
+name: Build iPhone app
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload to TestFlight (needs the App Store Connect secrets)"
+        type: boolean
+        default: false
+jobs:
+  build:
+    runs-on: macos-15
+    defaults: { run: { working-directory: mobile } }
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install
+        run: npm install
+      - name: Prepare web app
+        env:
+          ROWSKAN_APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: node prepare.js
+      - name: Create the iPhone project
+        run: |
+          npx cap add ios
+          node patch-native.js ios
+      - name: Icons
+        run: npx capacitor-assets generate --ios
+      - name: Sync
+        run: npx cap sync ios
+      - name: Check it compiles (no signing)
+        if: ${{ !inputs.upload }}
+        working-directory: mobile/ios/App
+        run: |
+          WS=$( [ -d App.xcworkspace ] && echo "-workspace App.xcworkspace" || echo "-project App.xcodeproj" )
+          xcodebuild $WS -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Archive and upload to TestFlight
+        if: ${{ inputs.upload }}
+        working-directory: mobile/ios/App
+        run: |
+          set -e
+          [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8_BASE64" ] && [ -n "$APPLE_TEAM_ID" ] || { echo "Missing App Store Connect secrets - see mobile/README.md"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/keys"; echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8 -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          WS=$( [ -d App.xcworkspace ] && echo "-workspace App.xcworkspace" || echo "-project App.xcodeproj" )
+          xcodebuild $WS -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic MARKETING_VERSION=1.0.0 CURRENT_PROJECT_VERSION=${{ github.run_number }} $AUTH archive
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" $AUTH

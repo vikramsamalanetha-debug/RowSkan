@@ -12,11 +12,13 @@ bool validVin(String vin) => RegExp(r'^[A-HJ-NPR-Z0-9]{17}$').hasMatch(vin.toUpp
 bool canDelete(String mode, {required bool desktop}) => mode == 'solo' || desktop;
 
 class Store {
+  final Directory? directory;
+  Store({this.directory});
   late Database db;
   late Directory root;
   bool get desktop => Platform.isWindows || Platform.isMacOS || Platform.isLinux;
   Future<void> open() async {
-    root = Directory(p.join((await getApplicationSupportDirectory()).path, 'RowSkan'));
+    root = directory ?? Directory(p.join((await getApplicationSupportDirectory()).path, 'RowSkan'));
     await Directory(p.join(root.path,'photos')).create(recursive:true);
     if (desktop) sqfliteFfiInit();
     final factory = desktop ? databaseFactoryFfi : databaseFactory;

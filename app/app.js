@@ -259,6 +259,7 @@
         b.onclick = () => openVehicle(v.vin); wrap.appendChild(b);
       });
       $('emptyMsg').hidden = shown.length > 0; $('emptyMsg').innerHTML = list.length ? 'No vehicle matches that search.' : 'No vehicles yet. Tap <b>Scan next vehicle</b>, or import a list of VINs below.';
+      renderDesk(list);
       const pend = list.filter((v) => v.done && v.dirty).length;
       $('pendTxt').textContent = list.length + (list.length === 1 ? ' vehicle' : ' vehicles') + (pend && Net.relayConfigured() ? ' · ' + pend + ' waiting to sync' : '');
       return pend;
@@ -270,26 +271,130 @@
   $('syncNow').onclick = () => { if (!Net.relayConfigured()) { toast('Syncing between devices is not turned on in this copy yet'); return; } Net.syncNow().then(() => toast('Checked for changes')); };
   $('connPill').onclick = openSettings; $('setBtn').onclick = openSettings;
   function csvEscape(v) { v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
-  $('exportBtn').onclick = () => {
-    S.allVeh().then((all) => {
-      const rows = [['VIN', 'Year', 'Make', 'Model', 'Trim', 'Body', 'Drive', 'Cylinders', 'Fuel', 'Lot location', 'Notes', 'Photos', 'Captured'].join(',')];
-      all.filter(live).sort((a, b) => String(b.capturedAt || '').localeCompare(String(a.capturedAt || ''))).forEach((v) => { const d = v.decoded || {}; rows.push([v.vin, d.year, d.make, d.model, d.trim, d.bodyClass, d.driveType, d.cylinders, d.fuel, v.lotLocation, v.notes, v.photos.length, v.capturedAt].map(csvEscape).join(',')); });
-      const blob = new Blob(['﻿' + rows.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = 'rowskan-inventory.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    });
-  };
+  function exportList(list, name) {
+    const rows = [['VIN', 'Year', 'Make', 'Model', 'Trim', 'Body', 'Drive', 'Cylinders', 'Fuel', 'Lot location', 'Notes', 'Photos', 'Captured'].join(',')];
+    list.forEach((v) => { const d = v.decoded || {}; rows.push([v.vin, d.year, d.make, d.model, d.trim, d.bodyClass, d.driveType, d.cylinders, d.fuel, v.lotLocation, v.notes, v.photos.length, v.capturedAt].map(csvEscape).join(',')); });
+    const blob = new Blob(['\ufeff' + rows.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name || 'rowskan-inventory.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  const newestFirst = (a, b) => String(b.capturedAt || '').localeCompare(String(a.capturedAt || ''));
+  $('exportBtn').onclick = () => S.allVeh().then((all) => exportList(all.filter(live).sort(newestFirst)));
   $('importBtn').onclick = () => { $('importFile').value = ''; $('importFile').click(); };
+  function parseCsv(txt) {
+    const rows = []; let row = [], f = '', q = false; txt = txt.replace(/^\ufeff/, '');
+    for (let i = 0; i < txt.length; i++) {
+      const c = txt[i];
+      if (q) { if (c === '"') { if (txt[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+      else if (c === '"') q = true; else if (c === ',' || c === '\t' || c === ';') { row.push(f); f = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && txt[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; } else f += c;
+    }
+    if (f !== '' || row.length) { row.push(f); rows.push(row); }
+    return rows.filter((r) => r.some((x) => String(x).trim() !== ''));
+  }
+  const cleanVin = (x) => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const validVin = (x) => /^[A-HJ-NPR-Z0-9]{17}$/.test(x);
+  function addVins(items) { // items: [{vin, lot, notes}] - creates or updates, then looks up details in the background
+    return items.reduce((p, it) => p.then(() => S.getVeh(it.vin).then((ex) => {
+      const fresh = !ex || ex.deleted, v = fresh ? newRecord(it.vin) : ex, fields = [];
+      if (fresh) { v.photos = fresh && ex ? [] : v.photos; v.capturedAt = Net.nowIso(); fields.push('capturedAt'); }
+      if (it.lot != null && it.lot !== '' && it.lot !== v.lotLocation) { v.lotLocation = it.lot; fields.push('lotLocation'); }
+      if (it.notes != null && it.notes !== '' && it.notes !== v.notes) { v.notes = it.notes; fields.push('notes'); }
+      if (!fresh && !fields.length) return;
+      delete v.deleted; v.done = true; return commit(v, fields);
+    })), Promise.resolve()).then(() => { refreshHome(); Net.kickSoon(); toast(items.length + ' vehicles imported — looking up details…'); decodePending(); });
+  }
+  let mapRows = null;
+  function openMap(rows) {
+    mapRows = rows; const head = rows[0].map((h, i) => (String(h).trim() || 'Column ' + (i + 1)));
+    const guess = (re, skip) => { const i = head.findIndex((h, j) => re.test(h) && j !== skip); return i; };
+    let vinI = guess(/vin/i); if (vinI < 0) { vinI = 0; let best = -1; for (let c = 0; c < head.length; c++) { const n = rows.slice(1, 40).filter((r) => validVin(cleanVin(r[c]))).length; if (n > best) { best = n; vinI = c; } } }
+    const lotI = guess(/lot|location|spot|row/i, vinI), noteI = guess(/note|comment|memo|desc/i, vinI);
+    [0, 1, 2].forEach((k) => { const sel = $('mCol' + k); sel.innerHTML = (k ? '<option value="-1">(none)</option>' : '') + head.map((h, i) => '<option value="' + i + '">' + esc(h) + '</option>').join(''); sel.value = String(k === 0 ? vinI : k === 1 ? lotI : noteI); });
+    $('mapInfo').textContent = (rows.length - 1) + ' rows found. Choose which column holds each piece of information.';
+    mapPreview(); $('mapDlg').classList.add('on');
+  }
+  function mapRowsToItems() {
+    const vi = +$('mCol0').value, li = +$('mCol1').value, ni = +$('mCol2').value, seen = new Set(), out = []; let bad = 0;
+    mapRows.slice(1).forEach((r) => { const vin = cleanVin(r[vi]); if (!validVin(vin)) { bad++; return; } if (seen.has(vin)) return; seen.add(vin); out.push({ vin, lot: li >= 0 ? String(r[li] || '').trim().slice(0, 40) : '', notes: ni >= 0 ? String(r[ni] || '').trim().slice(0, 300) : '' }); });
+    return { out, bad };
+  }
+  function mapPreview() { const r = mapRowsToItems(); $('mapPrev').textContent = r.out.length + ' valid VINs will be imported' + (r.bad ? ' · ' + r.bad + ' rows skipped (no valid 17-character VIN)' : '') + '.'; $('mapGo').disabled = !r.out.length; }
+  ['mCol0', 'mCol1', 'mCol2'].forEach((id) => $(id).addEventListener('change', mapPreview));
+  $('mapNo').onclick = () => { $('mapDlg').classList.remove('on'); mapRows = null; };
+  $('mapGo').onclick = () => { const r = mapRowsToItems(); $('mapDlg').classList.remove('on'); mapRows = null; addVins(r.out); };
   $('importFile').onchange = function () {
     const f = this.files && this.files[0]; if (!f) return;
     f.text().then((txt) => {
+      const rows = parseCsv(txt);
+      if (rows.length > 1 && rows[0].length > 1 && !validVin(cleanVin(rows[0][0]))) return openMap(rows);
       const vins = Array.from(new Set((txt.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/g) || [])));
       if (!vins.length) { toast('No VINs found in that file'); return; }
-      return vins.reduce((p, vin) => p.then(() => S.getVeh(vin).then((ex) => {
-        if (ex && !ex.deleted) return; const v = ex ? Object.assign(ex, { deleted: undefined, photos: [] }) : newRecord(vin); delete v.deleted; v.done = true; return commit(v, ['capturedAt']);
-      })), Promise.resolve()).then(() => { toast(vins.length + ' VINs added — looking up details…'); refreshHome(); Net.kickSoon();
-        return vins.reduce((p, vin) => p.then(() => decodeInto(vin).catch(() => { })), Promise.resolve()); }).then(() => { refreshHome(); Net.kickSoon(); toast('Import finished'); });
+      addVins(vins.map((vin) => ({ vin })));
     });
   };
+
+  /* ---------------------------------------------------------------- desktop table */
+  const sortBy = { k: 'date', d: true }, sel = new Set(); let sideVin = null, lastShown = [];
+  const keyOf = (v, k) => { const d = v.decoded || {}; return k === 'vin' ? v.vin : k === 'year' ? +d.year || 0 : k === 'make' ? d.make || '' : k === 'model' ? d.model || '' : k === 'trim' ? d.trim || '' : k === 'lot' ? v.lotLocation || '' : k === 'photos' ? v.photos.length : k === 'status' ? (v.done ? (v.dirty ? 1 : 2) : 0) : v.capturedAt || ''; };
+  const statusOf = (v) => !v.done ? ['Capturing', 'wait'] : !Net.relayConfigured() ? ['On this device', ''] : v.dirty ? ['Waiting to sync', 'wait'] : ['Synced ✓', 'ok'];
+  function fillSelect(id, vals, label) { const el = $(id), keep = el.value; el.innerHTML = '<option value="">' + label + '</option>' + vals.map((x) => '<option>' + esc(x) + '</option>').join(''); if (vals.indexOf(keep) >= 0) el.value = keep; }
+  function renderDesk(list) {
+    if (!window.matchMedia('(min-width:900px)').matches) return;
+    const d = (v) => v.decoded || {};
+    fillSelect('fMake', Array.from(new Set(list.map((v) => d(v).make).filter(Boolean))).sort(), 'All makes');
+    fillSelect('fYear', Array.from(new Set(list.map((v) => d(v).year).filter(Boolean))).sort().reverse(), 'All years');
+    fillSelect('fLot', Array.from(new Set(list.map((v) => v.lotLocation).filter(Boolean))).sort(), 'All lot locations');
+    const fm = $('fMake').value, fy = $('fYear').value, fl = $('fLot').value, fs = $('fStat').value;
+    let shown = list.filter((v) => matches(v, searchText) && (!fm || d(v).make === fm) && (!fy || d(v).year === fy) && (!fl || v.lotLocation === fl)
+      && (!fs || (fs === 'nophoto' ? !v.photos.length : fs === 'nodetail' ? !d(v).make : (v.done && v.dirty))));
+    shown.sort((a, b) => { const x = keyOf(a, sortBy.k), y = keyOf(b, sortBy.k), c = (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })); return sortBy.d ? -c : c; });
+    lastShown = shown; Array.from(sel).forEach((vin) => { if (!list.some((v) => v.vin === vin)) sel.delete(vin); });
+    document.querySelectorAll('.dt th[data-k]').forEach((th) => { th.classList.toggle('s', th.dataset.k === sortBy.k); th.classList.toggle('d', th.dataset.k === sortBy.k && sortBy.d); });
+    const tb = $('tb'); tb.innerHTML = '';
+    shown.forEach((v) => {
+      const tr = document.createElement('tr'), st = statusOf(v), dd = d(v); tr.className = 'row2' + (sel.has(v.vin) ? ' sel' : '') + (v.vin === sideVin ? ' sel' : '');
+      tr.innerHTML = '<td><input type="checkbox"' + (sel.has(v.vin) ? ' checked' : '') + ' aria-label="Select"></td><td><img class="th2" alt=""></td><td class="mono">' + esc(v.vin) + '</td><td>' + esc(dd.year || '') + '</td><td>' + esc(dd.make || '') + '</td><td>' + esc(dd.model || '') + '</td><td>' + esc(dd.trim || '') + '</td><td>' + esc(v.lotLocation || '') + '</td><td>' + v.photos.length + '</td><td>' + esc(String(v.capturedAt || '').slice(0, 10)) + '</td><td><span class="chip ' + st[1] + '">' + st[0] + '</span></td>';
+      if (v.photos[0]) S.getPhoto(v.photos[0].id).then((r) => { if (r && r.blob) { const u = URL.createObjectURL(r.blob); thumbUrls.push(u); tr.querySelector('img').src = u; } });
+      tr.querySelector('input').onclick = (e) => { e.stopPropagation(); if (e.target.checked) sel.add(v.vin); else sel.delete(v.vin); tr.classList.toggle('sel', e.target.checked); bulkRender(); };
+      tr.onclick = () => openSide(v.vin); tb.appendChild(tr);
+    });
+    $('dCount').textContent = shown.length + ' of ' + list.length + ' vehicles'; $('selAll').checked = shown.length > 0 && shown.every((v) => sel.has(v.vin));
+    bulkRender(); if (sideVin) { if (list.some((v) => v.vin === sideVin)) { if (!sideEditing()) fillSide(); } else closeSide(); }
+  }
+  document.querySelectorAll('.dt th[data-k]').forEach((th) => { th.onclick = () => { const k = th.dataset.k; sortBy.d = sortBy.k === k ? !sortBy.d : (k === 'date' || k === 'photos'); sortBy.k = k; refreshHome(); }; });
+  ['fMake', 'fYear', 'fLot', 'fStat'].forEach((id) => $(id).addEventListener('change', refreshHome));
+  window.addEventListener('resize', () => { if (current === 'sHome') refreshHome(); });
+  $('selAll').onclick = function () { lastShown.forEach((v) => { if (this.checked) sel.add(v.vin); else sel.delete(v.vin); }); refreshHome(); };
+  function bulkRender() { $('bulkBar').hidden = sel.size === 0; $('bulkN').textContent = sel.size + ' selected'; }
+  const selVeh = () => Promise.all(Array.from(sel).map((vin) => S.getVeh(vin))).then((l) => l.filter((v) => v && live(v)));
+  $('bulkClr').onclick = () => { sel.clear(); refreshHome(); };
+  $('bulkSet').onclick = () => { const loc = $('bulkLot').value.trim().slice(0, 40); selVeh().then((l) => l.reduce((p, v) => p.then(() => { v.lotLocation = loc; return commit(v, ['lotLocation']); }), Promise.resolve()).then(() => { toast('Location set for ' + l.length + ' vehicles'); Net.kickSoon(); refreshHome(); })); };
+  $('bulkExp').onclick = () => selVeh().then((l) => exportList(l.sort(newestFirst), 'rowskan-selected.csv'));
+  $('bulkDel').onclick = () => {
+    if (!confirm('Delete ' + sel.size + ' vehicles and their photos from all your devices?')) return;
+    selVeh().then((l) => l.reduce((p, v) => p.then(() => Promise.all(v.photos.map((ph) => S.delPhoto(ph.id))).then(() => { v.deleted = true; v.deletedAt = Net.nowIso(); v.photos = []; v.done = true; return commit(v, null); })), Promise.resolve()).then(() => { sel.clear(); closeSide(); Net.kickSoon(); refreshHome(); toast('Deleted'); }));
+  };
+  $('dExport').onclick = () => exportList(lastShown, 'rowskan-inventory.csv'); $('dImport').onclick = $('importBtn').onclick; $('dPrint').onclick = () => window.print();
+  function sideEditing() { const a = document.activeElement; return a === $('sLot') || a === $('sNote'); }
+  function openSide(vin) { sideVin = vin; $('side').hidden = false; fillSide(); refreshHome(); }
+  function closeSide() { sideVin = null; $('side').hidden = true; }
+  let sideUrls = [];
+  function fillSide() {
+    S.getVeh(sideVin).then((v) => {
+      if (!v || v.deleted) return closeSide(); const dd = v.decoded || {};
+      $('sTitle').textContent = title(v) || 'Details pending'; $('sVin').textContent = v.vin;
+      $('sDec').innerHTML = [['Body', dd.bodyClass], ['Drive', dd.driveType], ['Engine', [dd.cylinders && dd.cylinders + ' cyl', dd.displacementL && (+dd.displacementL).toFixed(1) + 'L'].filter(Boolean).join(' ')], ['Fuel', dd.fuel], ['Trim', dd.trim]].filter((x) => x[1]).map((x) => '<div><span>' + x[0] + '</span>' + esc(x[1]) + '</div>').join('');
+      if (document.activeElement !== $('sLot')) $('sLot').value = v.lotLocation || ''; if (document.activeElement !== $('sNote')) $('sNote').value = v.notes || '';
+      sideUrls.forEach((u) => URL.revokeObjectURL(u)); sideUrls = []; const box = $('sPh'); box.innerHTML = ''; $('sPhN').textContent = v.photos.length + (v.photos.length === 1 ? ' photo' : ' photos');
+      v.photos.forEach((p) => S.getPhoto(p.id).then((r) => { if (r && r.blob) { const u = URL.createObjectURL(r.blob); sideUrls.push(u); const im = document.createElement('img'); im.src = u; im.alt = ''; im.onclick = () => { $('lb').querySelector('img').src = u; $('lb').classList.add('on'); }; box.appendChild(im); } }));
+    });
+  }
+  $('lbX').onclick = () => $('lb').classList.remove('on'); $('lb').onclick = (e) => { if (e.target === $('lb')) $('lb').classList.remove('on'); };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('lb').classList.remove('on'); $('mapDlg').classList.remove('on'); } });
+  $('sClose').onclick = () => { closeSide(); refreshHome(); };
+  $('sSave').onclick = () => S.getVeh(sideVin).then((v) => { if (!v) return; const f = [], loc = $('sLot').value.trim(), nt = $('sNote').value.trim(); if (loc !== (v.lotLocation || '')) { v.lotLocation = loc; f.push('lotLocation'); } if (nt !== (v.notes || '')) { v.notes = nt; f.push('notes'); } return (f.length ? commit(v, f) : Promise.resolve()).then(() => { toast('Saved'); Net.kickSoon(); refreshHome(); }); });
+  $('sOpen').onclick = () => openVehicle(sideVin);
+  $('sDel').onclick = () => { if (!confirm('Delete this vehicle and its photos from all your devices?')) return; S.getVeh(sideVin).then((v) => Promise.all(v.photos.map((p) => S.delPhoto(p.id))).then(() => { v.deleted = true; v.deletedAt = Net.nowIso(); v.photos = []; v.done = true; return commit(v, null); })).then(() => { sel.delete(sideVin); closeSide(); Net.kickSoon(); refreshHome(); }); };
 
   /* ---------------------------------------------------------------- connection pill */
   function renderConn() {

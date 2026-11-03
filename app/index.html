@@ -81,6 +81,43 @@ textarea.linktxt{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padd
 .dev{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .dev:first-child{border-top:0}
 @media (min-width:900px){.body{padding:24px}.cam{max-height:48vh}}
+
+/* ---- desktop inventory view (wide screens) ---- */
+.desk{display:none}
+select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);min-height:42px}
+.dsm{min-height:40px;padding:8px 14px;border-radius:10px}
+@media (min-width:900px){
+  #sHome .wrap{max-width:1500px;padding:20px 28px}
+  #list,#syncCard{display:none}
+  .desk{display:block}
+  #sHome .wrapbtn #exportBtn,#sHome .wrapbtn #importBtn{display:none}
+  .dtools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .dtools .sp{flex:1}
+  .dbulk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;background:rgba(245,158,11,.14);border:1px solid var(--brand);border-radius:12px}
+  .dbulk input{width:170px;padding:8px 10px;text-transform:none}
+  .dmain{display:flex;gap:14px;align-items:flex-start}
+  .dtblwrap{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:calc(100vh - 290px)}
+  table.dt{border-collapse:collapse;width:100%;font-size:14px}
+  .dt th{position:sticky;top:0;background:var(--surface);text-align:left;padding:10px 10px;border-bottom:2px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .dt th.nosort{cursor:default}
+  .dt th.s::after{content:' ▲'}.dt th.s.d::after{content:' ▼'}
+  .dt td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  .dt tr.row2{cursor:pointer}.dt tr.row2:hover{background:rgba(127,127,127,.08)}.dt tr.row2.sel{background:rgba(245,158,11,.16)}
+  .dt .th2{width:52px;height:38px;border-radius:6px;object-fit:cover;background:rgba(127,127,127,.2);display:block}
+  .dt input[type=checkbox]{width:18px;height:18px}
+  #side{width:380px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;max-height:calc(100vh - 290px);overflow:auto;display:flex;flex-direction:column;gap:10px}
+  #side[hidden]{display:none}
+  #side .sph{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  #side .sph img{width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:zoom-in;background:rgba(127,127,127,.2)}
+  #side input.free,#side textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);text-transform:none}
+}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+#lb.on{display:flex}#lb img{max-width:100%;max-height:100%;border-radius:8px}
+#lb button{position:absolute;top:14px;right:14px;min-height:44px}
+#mapDlg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+#mapDlg.on{display:flex}#mapDlg .card{max-width:520px;width:100%;display:flex;flex-direction:column;gap:10px}
+#mapDlg label{display:flex;justify-content:space-between;gap:10px;align-items:center}
+#mapDlg select{min-width:200px}
 </style>
 </head>
 <body>
@@ -115,7 +152,7 @@ textarea.linktxt{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padd
       <p class="small" style="margin:6px 0 8px">Sign in without typing a password: show a code here and approve it from the device you already use.</p>
       <button id="authScanLink" style="width:100%">Sign in by scanning from another device</button></div>
   </div>
-  <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+    <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
 </section>
 
 <!-- LINK THIS DEVICE (show a code for a signed-in device to approve) -->
@@ -145,6 +182,31 @@ textarea.linktxt{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padd
     <input type="search" id="q" placeholder="Search VIN, make, model, lot spot, notes" autocomplete="off">
     <div class="card" id="syncCard"><div class="toggle"><div><b id="pendTxt">Nothing waiting</b><div class="small" id="syncMsg"></div></div>
       <button id="syncNow" style="flex:none">Sync now</button></div></div>
+    <div class="desk" id="desk">
+      <div class="dtools">
+        <select id="fMake"><option value="">All makes</option></select>
+        <select id="fYear"><option value="">All years</option></select>
+        <select id="fLot"><option value="">All lot locations</option></select>
+        <select id="fStat"><option value="">All vehicles</option><option value="nophoto">No photos</option><option value="nodetail">Details missing</option><option value="waiting">Waiting to sync</option></select>
+        <span class="sp small" id="dCount"></span>
+        <button class="dsm" id="dExport">⬇ Export CSV</button><button class="dsm" id="dImport">⬆ Import list / spreadsheet</button><button class="dsm" id="dPrint">🖨 Print</button>
+      </div>
+      <div class="dbulk" id="bulkBar" hidden><b id="bulkN"></b>
+        <input type="text" id="bulkLot" placeholder="New lot location"><button class="dsm" id="bulkSet">Set location</button>
+        <button class="dsm" id="bulkExp">Export selected</button><button class="dsm" id="bulkDel" style="color:var(--bad)">Delete selected</button><button class="dsm" id="bulkClr">Clear</button></div>
+      <div class="dmain">
+        <div class="dtblwrap"><table class="dt"><thead><tr><th class="nosort"><input type="checkbox" id="selAll" aria-label="Select all"></th><th class="nosort"></th>
+          <th data-k="vin">VIN</th><th data-k="year">Year</th><th data-k="make">Make</th><th data-k="model">Model</th><th data-k="trim">Trim</th><th data-k="lot">Lot</th><th data-k="photos">Photos</th><th data-k="date">Captured</th><th data-k="status">Status</th></tr></thead><tbody id="tb"></tbody></table></div>
+        <aside id="side" hidden>
+          <div style="display:flex;justify-content:space-between;gap:8px"><div><b id="sTitle"></b><div class="small mono" id="sVin"></div></div><button class="dsm" id="sClose" aria-label="Close">✕</button></div>
+          <div class="sph" id="sPh"></div><div class="small" id="sPhN"></div>
+          <div id="sDec" class="kv"></div>
+          <input class="free" id="sLot" placeholder="Lot location" maxlength="40"><textarea id="sNote" rows="3" placeholder="Notes" maxlength="300"></textarea>
+          <div class="row"><button class="primary dsm" id="sSave" style="font-size:15px">Save</button><button class="dsm" id="sOpen">Open / add photos</button></div>
+          <button class="dsm" id="sDel" style="color:var(--bad)">Delete vehicle</button>
+        </aside>
+      </div>
+    </div>
     <div id="list"></div>
     <div class="small" id="emptyMsg" style="text-align:center;padding:30px 10px">No vehicles yet. Tap <b>Scan next vehicle</b>, or import a list of VINs below.</div>
     <div class="row wrapbtn"><button id="exportBtn">⬇ Export CSV</button><button id="importBtn">⬆ Import VIN list</button><button id="setBtn">⚙ Settings</button></div>
@@ -224,6 +286,10 @@ textarea.linktxt{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padd
   </div>
 </section>
 
+<div id="lb"><button id="lbX">Close ✕</button><img alt=""></div>
+    <div id="mapDlg"><div class="card"><b>Import a spreadsheet (CSV)</b><div class="small" id="mapInfo"></div>
+      <label>VIN column <select id="mCol0"></select></label><label>Lot location column <select id="mCol1"></select></label><label>Notes column <select id="mCol2"></select></label>
+      <div class="small" id="mapPrev"></div><div class="row"><button id="mapNo">Cancel</button><button class="primary" id="mapGo" style="font-size:16px">Import</button></div></div></div>
 <div id="toast"></div>
 <script src="config.js"></script>
 <script src="qr.js"></script>

@@ -15,6 +15,7 @@ jobs:
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      BUNDLE_ID: net.litamerica.rowskan
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,22 +40,34 @@ jobs:
         run: |
           WS=$( [ -d App.xcworkspace ] && echo "-workspace App.xcworkspace" || echo "-project App.xcodeproj" )
           xcodebuild $WS -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
-      - name: Archive and upload to TestFlight
+      - name: Prepare the Apple key
         if: ${{ inputs.upload }}
         working-directory: mobile/ios/App
         run: |
           set -e
           [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8_BASE64" ] && [ -n "$APPLE_TEAM_ID" ] || { echo "Missing App Store Connect secrets - see mobile/README.md"; exit 1; }
           KEYFILE="$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"; mkdir -p "$RUNNER_TEMP/keys"
-          if printf '%s' "$ASC_KEY_P8_BASE64" | grep -q "BEGIN PRIVATE KEY"; then printf '%s\n' "$ASC_KEY_P8_BASE64" > "$KEYFILE"   # the key was pasted as plain text
+          if printf '%s' "$ASC_KEY_P8_BASE64" | grep -q "BEGIN PRIVATE KEY"; then printf '%s\n' "$ASC_KEY_P8_BASE64" > "$KEYFILE"
           else printf '%s' "$ASC_KEY_P8_BASE64" | tr -d ' \r\n' | base64 --decode > "$KEYFILE"; fi
           chmod 600 "$KEYFILE"
-          head -1 "$KEYFILE" | grep -q "BEGIN PRIVATE KEY" || { echo "The ASC_KEY_P8_BASE64 secret does not contain a valid Apple .p8 key (decoded size: $(wc -c < "$KEYFILE") bytes). Re-create the secret from the .p8 file."; exit 1; }
-          echo "Apple key file looks valid ($(wc -c < "$KEYFILE") bytes)"
-          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEYFILE -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          head -1 "$KEYFILE" | grep -q "BEGIN PRIVATE KEY" || { echo "The ASC_KEY_P8_BASE64 secret does not contain a valid Apple .p8 key. Re-create the secret from the .p8 file."; exit 1; }
+          echo "ASC_KEY_FILE=$KEYFILE" >> "$GITHUB_ENV"
+      - name: Create a temporary signing certificate and profile
+        if: ${{ inputs.upload }}
+        run: node ios-signing.js setup
+      - name: Archive
+        if: ${{ inputs.upload }}
+        working-directory: mobile/ios/App
+        run: |
+          set -e
           WS=$( [ -d App.xcworkspace ] && echo "-workspace App.xcworkspace" || echo "-project App.xcodeproj" )
           xcodebuild $WS -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic MARKETING_VERSION=1.0.0 CURRENT_PROJECT_VERSION=${{ github.run_number }} $AUTH archive
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO MARKETING_VERSION=1.0.0 CURRENT_PROJECT_VERSION=${{ github.run_number }} archive
+      - name: Sign and upload to TestFlight
+        if: ${{ inputs.upload }}
+        working-directory: mobile/ios/App
+        run: |
+          set -e
           cat > "$RUNNER_TEMP/export.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -62,7 +75,13 @@ jobs:
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
             <key>teamID</key><string>$APPLE_TEAM_ID</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict><key>net.litamerica.rowskan</key><string>$PROFILE_NAME</string></dict>
           </dict></plist>
           PLIST
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" $AUTH
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" \
+            -authenticationKeyPath "$ASC_KEY_FILE" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+      - name: Remove the temporary certificate
+        if: ${{ always() && inputs.upload }}
+        run: node ios-signing.js cleanup

@@ -8,7 +8,7 @@ on:
         default: false
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     defaults: { run: { working-directory: mobile } }
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -18,6 +18,11 @@ jobs:
       BUNDLE_ID: net.litamerica.rowskan
     steps:
       - uses: actions/checkout@v4
+      - name: Select the newest Xcode (Apple requires the iOS 26 SDK or later for uploads)
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Install

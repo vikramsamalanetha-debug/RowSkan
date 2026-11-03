@@ -178,7 +178,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
   <div class="top"><img src="icon.svg" alt=""><h1>RowSkan</h1>
     <button class="pill" id="connPill"><span class="dot" id="connDot"></span><span id="connTxt">Checking…</span></button></div>
   <div class="body wrap">
-    <div class="row wrapbtn"><button class="primary" id="newVeh" style="min-height:64px">📷 Scan next vehicle</button></div>
+    <div class="row wrapbtn"><button class="primary" id="newVeh" style="min-height:64px">📷 Scan or add a vehicle</button></div>
     <input type="search" id="q" placeholder="Search VIN, make, model, lot spot, notes" autocomplete="off">
     <div class="card" id="syncCard"><div class="toggle"><div><b id="pendTxt">Nothing waiting</b><div class="small" id="syncMsg"></div></div>
       <button id="syncNow" style="flex:none">Sync now</button></div></div>
@@ -196,7 +196,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
         <button class="dsm" id="bulkExp">Export selected</button><button class="dsm" id="bulkDel" style="color:var(--bad)">Delete selected</button><button class="dsm" id="bulkClr">Clear</button></div>
       <div class="dmain">
         <div class="dtblwrap"><table class="dt"><thead><tr><th class="nosort"><input type="checkbox" id="selAll" aria-label="Select all"></th><th class="nosort"></th>
-          <th data-k="vin">VIN</th><th data-k="year">Year</th><th data-k="make">Make</th><th data-k="model">Model</th><th data-k="trim">Trim</th><th data-k="lot">Lot</th><th data-k="photos">Photos</th><th data-k="date">Captured</th><th data-k="status">Status</th></tr></thead><tbody id="tb"></tbody></table></div>
+          <th data-k="vin">VIN / ID</th><th data-k="year">Year</th><th data-k="make">Make</th><th data-k="model">Model</th><th data-k="trim">Trim</th><th data-k="lot">Lot</th><th data-k="photos">Photos</th><th data-k="date">Captured</th><th data-k="status">Status</th></tr></thead><tbody id="tb"></tbody></table></div>
         <aside id="side" hidden>
           <div style="display:flex;justify-content:space-between;gap:8px"><div><b id="sTitle"></b><div class="small mono" id="sVin"></div></div><button class="dsm" id="sClose" aria-label="Close">✕</button></div>
           <div class="sph" id="sPh"></div><div class="small" id="sPhN"></div>
@@ -224,9 +224,10 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
     <div class="banner" id="scanNote" hidden></div>
     <div class="row"><button id="torchBtn" hidden>🔦 Light</button><button id="scanPhotoBtn" hidden>🖼 Pick a photo</button></div>
     <div class="card"><b>Or type it</b>
-      <input type="text" id="vinIn" maxlength="17" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="17-character VIN" style="margin-top:8px" class="mono">
+      <input type="text" id="vinIn" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="VIN, or serial number for older vehicles" style="margin-top:8px" class="mono">
       <div class="small" id="vinMsg" style="margin-top:6px"></div>
-      <button class="primary" id="vinGo" style="margin-top:8px;width:100%" disabled>Use this VIN</button></div>
+      <button class="primary" id="vinGo" style="margin-top:8px;width:100%" disabled>Use this VIN</button>
+      <button id="noVinBtn" style="margin-top:8px;width:100%">No VIN or serial number — add without one</button></div>
   </div>
 </section>
 
@@ -237,6 +238,9 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
     <div class="card"><div class="mono" id="vehVin" style="font-weight:700"></div>
       <div id="vehDecoded" class="kv" style="margin-top:8px"></div>
       <div class="banner" id="vehWarn" hidden style="margin-top:8px"></div></div>
+    <details class="card" id="manDet"><summary style="cursor:pointer;font-weight:600">Vehicle details <span class="small">(type them in if there is no VIN lookup)</span></summary>
+      <div class="row" style="margin-top:8px"><input type="text" class="free" id="mYear" placeholder="Year" inputmode="numeric" maxlength="4"><input type="text" class="free" id="mMake" placeholder="Make" maxlength="30"></div>
+      <div class="row" style="margin-top:8px"><input type="text" class="free" id="mModel" placeholder="Model" maxlength="40"><input type="text" class="free" id="mTrim" placeholder="Trim / color (optional)" maxlength="40"></div></details>
     <div class="cam" id="photoCam"><video id="photoVideo" playsinline muted autoplay></video><div class="hint" id="photoHint"></div></div>
     <div class="row" style="align-items:center"><div class="small" id="photoCount" style="flex:1"></div>
       <button class="shutter" id="shutter" aria-label="Take photo"></button>

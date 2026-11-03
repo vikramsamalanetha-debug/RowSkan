@@ -32,6 +32,10 @@
     });
   }
   const live = (v) => !v.deleted;
+  const isVin = (x) => /^[A-HJ-NPR-Z0-9]{17}$/.test(x || '');
+  const noVinId = () => 'NV' + Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
+  const shortId = (x) => /^NV[A-Z0-9]{6}$/.test(x) ? 'No VIN · ' + x : x;
+  const idKind = (x) => isVin(x) ? 'VIN' : /^NV[A-Z0-9]{6}$/.test(x) ? 'No VIN' : 'Serial number';
   function newRecord(vin) {
     const t = Net.nowIso();
     return { vin, photos: [], removed: [], f: { capturedAt: t }, u: t, capturedAt: t, notes: '', lotLocation: '', decoded: null, done: false, dirty: true, rev: 1, sent: [] };
@@ -96,14 +100,15 @@
   function onVin(vin) { beep(); closeScan(); openVehicle(vin); }
   function vinInput() {
     const el = $('vinIn'), v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); el.value = v;
-    const msg = $('vinMsg'), ok = v.length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(v);
-    if (!v) msg.textContent = ''; else if (v.length < 17) msg.textContent = v.length + ' of 17 characters';
-    else if (!ok) msg.textContent = 'VINs never contain the letters I, O or Q';
-    else msg.textContent = C39.vinCheckOk(v) ? '✓ Valid VIN' : 'Check digit does not match — double-check, or continue if it is an older/foreign vehicle';
-    $('vinGo').disabled = !ok;
+    const msg = $('vinMsg'), vin = isVin(v), serial = !vin && v.length >= 3 && v.length !== 17;
+    if (!v) msg.textContent = ''; else if (vin) msg.textContent = C39.vinCheckOk(v) ? '✓ Valid VIN' : 'Check digit does not match — double-check, or continue if it is an older/foreign vehicle';
+    else if (v.length === 17) msg.textContent = 'A 17-character VIN never contains I, O or Q — continue only if this is a serial number';
+    else msg.textContent = v.length < 3 ? 'Keep typing…' : 'Not a 17-character VIN — it will be saved as a serial number (fine for older vehicles)';
+    $('vinGo').textContent = vin ? 'Use this VIN' : 'Use as serial number'; $('vinGo').disabled = !(vin || serial || v.length === 17);
   }
   $('vinIn').addEventListener('input', vinInput);
   $('vinGo').onclick = () => { closeScan(); openVehicle($('vinIn').value); };
+  $('noVinBtn').onclick = () => { closeScan(); openVehicle(noVinId()); };
   $('scanBack').onclick = () => { closeScan(); goHome(); };
   $('torchBtn').onclick = () => { const tr = stream && stream.getVideoTracks()[0]; if (!tr) return; const on = !$('torchBtn').dataset.on; $('torchBtn').dataset.on = on ? '1' : ''; tr.applyConstraints({ advanced: [{ torch: on }] }).catch(() => toast('Light not available')); };
   $('scanPhotoBtn').onclick = () => { $('fileScan').value = ''; $('fileScan').click(); };
@@ -125,14 +130,14 @@
       .then((r) => { clearTimeout(t); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then((j) => { const row = (j.Results || [])[0] || {}, d = {}; Object.keys(NHTSA).forEach((k) => { const x = row[NHTSA[k]]; if (x !== undefined && x !== null && String(x).trim() !== '') d[k] = String(x).trim(); }); d.source = 'NHTSA vPIC'; d.decodedAt = new Date().toISOString(); return d; });
   }
-  function decodeInto(vin) { // look the details up and store them (no matter which screen is open)
+  function decodeInto(vin) { if (!isVin(vin)) return Promise.resolve(); // look the details up and store them (no matter which screen is open)
     return decodeVin(vin).then((d) => S.getVeh(vin).then((v) => { if (!v) return; v.decoded = Object.assign({}, v.decoded || {}, d); return commit(v, ['decoded']); }));
   }
 
   let decoding = false;
   function decodePending() { // vehicles captured offline get their details as soon as a connection exists
     if (decoding || !navigator.onLine) return; decoding = true;
-    S.allVeh().then((all) => all.filter((v) => live(v) && !(v.decoded && v.decoded.make) && !(v.decoded && v.decoded.errorText)).reduce((p, v) => p.then(() => decodeInto(v.vin).catch(() => { })), Promise.resolve()))
+    S.allVeh().then((all) => all.filter((v) => live(v) && isVin(v.vin) && !(v.decoded && v.decoded.make) && !(v.decoded && v.decoded.errorText)).reduce((p, v) => p.then(() => decodeInto(v.vin).catch(() => { })), Promise.resolve()))
       .then(() => { decoding = false; if (current === 'sHome') refreshHome(); Net.kickSoon(); }, () => { decoding = false; });
   }
   window.addEventListener('online', () => setTimeout(decodePending, 500));
@@ -148,7 +153,7 @@
       cur = v; return commit(v, null);
     }).then((v) => {
       cur = v; show('sVeh'); renderVehicle(); startPhotoCamera();
-      if (!(cur.decoded && cur.decoded.make)) decodeInto(vin).then(() => { if (cur && cur.vin === vin) S.getVeh(vin).then((f) => { if (f) { cur = Object.assign({}, cur, { decoded: f.decoded }); renderVehicle(); } }); }).catch(() => { if (cur && cur.vin === vin) renderVehicle(); });
+      if (isVin(vin) && !(cur.decoded && cur.decoded.make)) decodeInto(vin).then(() => { if (cur && cur.vin === vin) S.getVeh(vin).then((f) => { if (f) { cur = Object.assign({}, cur, { decoded: f.decoded }); renderVehicle(); } }); }).catch(() => { if (cur && cur.vin === vin) renderVehicle(); });
     });
   }
   let camState = 'off';
@@ -160,15 +165,18 @@
   function renderVehicle() {
     if (!cur) return;
     const d = cur.decoded;
-    $('vehTitle').textContent = title(cur) || 'New vehicle'; $('vehVin').textContent = cur.vin;
+    $('vehTitle').textContent = title(cur) || 'New vehicle'; $('vehVin').textContent = idKind(cur.vin) === 'No VIN' ? 'No VIN · ID ' + cur.vin : idKind(cur.vin) + ' ' + cur.vin;
     const f = d ? [['Year', d.year], ['Make', d.make], ['Model', d.model], ['Trim', d.trim], ['Body', d.bodyClass], ['Drive', d.driveType], ['Engine', [d.cylinders && d.cylinders + ' cyl', d.displacementL && (+d.displacementL).toFixed(1) + 'L'].filter(Boolean).join(' ')], ['Fuel', d.fuel]].filter((x) => x[1]) : [];
     $('vehDecoded').innerHTML = f.map((x) => '<div><span>' + x[0] + '</span>' + esc(x[1]) + '</div>').join('');
     const msgs = [];
-    if (!d) msgs.push('Looking up vehicle details… (if you are offline they are filled in automatically later)');
-    else if (!d.make) msgs.push('The VIN database found no match. Check the VIN: ' + (d.errorText || ''));
-    if (!C39.vinCheckOk(cur.vin) && cur.vin.length === 17) msgs.push('VIN check digit does not match — double-check the number.');
+    if (!isVin(cur.vin)) { if (!(d && d.make)) msgs.push('No VIN to look up — type the year, make and model under “Vehicle details”.'); }
+    else { if (!d) msgs.push('Looking up vehicle details… (if you are offline they are filled in automatically later)');
+      else if (!d.make) msgs.push('The VIN database found no match. Check the VIN, or type the details yourself: ' + (d.errorText || ''));
+      if (!C39.vinCheckOk(cur.vin)) msgs.push('VIN check digit does not match — double-check the number.'); }
     $('vehWarn').hidden = !msgs.length; $('vehWarn').textContent = msgs.join(' ');
     $('locIn').value = cur.lotLocation || ''; $('noteIn').value = cur.notes || '';
+    ['mYear:year', 'mMake:make', 'mModel:model', 'mTrim:trim'].forEach((p) => { const [id, k] = p.split(':'); if (document.activeElement !== $(id)) $(id).value = (d && d[k]) || ''; });
+    if (!isVin(cur.vin) || (d && d.manual)) $('manDet').open = true;
     renderStrip();
   }
   function renderStrip() {
@@ -220,6 +228,8 @@
     const loc = $('locIn').value.trim(), notes = $('noteIn').value.trim();
     if (loc !== (cur.lotLocation || '')) { cur.lotLocation = loc; fields.push('lotLocation'); }
     if (notes !== (cur.notes || '')) { cur.notes = notes; fields.push('notes'); }
+    const man = { year: $('mYear').value.trim().replace(/\D/g, '').slice(0, 4), make: $('mMake').value.trim(), model: $('mModel').value.trim(), trim: $('mTrim').value.trim() }, od = cur.decoded || {};
+    if (Object.keys(man).some((k) => man[k] !== (od[k] || ''))) { const nd = Object.assign({}, od); Object.keys(man).forEach((k) => { if (man[k]) nd[k] = man[k]; else delete nd[k]; }); nd.manual = true; nd.source = nd.source || 'Entered by hand'; cur.decoded = nd; fields.push('decoded'); }
     return fields.length ? commit(cur, fields) : Promise.resolve();
   }
   function leaveVehicle() { stopCamera(); return S.getVeh(cur.vin).then((f) => { if (f) { f.done = true; return commit(Object.assign(f, { photos: f.photos }), null); } }); }
@@ -253,7 +263,7 @@
       shown.forEach((v) => {
         const b = document.createElement('button'); b.className = 'vcard card';
         const synced = !v.dirty, status = !v.done ? ['Capturing', 'wait'] : !Net.relayConfigured() ? ['On this device', ''] : !synced ? ['Waiting to sync', 'wait'] : ['Synced ✓', 'ok'];
-        b.innerHTML = '<img class="th" alt=""><div class="t"><b>' + esc(title(v) || 'Details pending') + '</b><span class="small mono">' + esc(v.vin) + '</span><div class="small">' + v.photos.length + ' photos' + (v.lotLocation ? ' · ' + esc(v.lotLocation) : '') + '</div></div><span class="chip ' + status[1] + '">' + status[0] + '</span>';
+        b.innerHTML = '<img class="th" alt=""><div class="t"><b>' + esc(title(v) || 'Details pending') + '</b><span class="small mono">' + esc(shortId(v.vin)) + '</span><div class="small">' + v.photos.length + ' photos' + (v.lotLocation ? ' · ' + esc(v.lotLocation) : '') + '</div></div><span class="chip ' + status[1] + '">' + status[0] + '</span>';
         const first = v.photos[0];
         if (first) S.getPhoto(first.id).then((r) => { if (r && r.blob) { const u = URL.createObjectURL(r.blob); thumbUrls.push(u); b.querySelector('img').src = u; } });
         b.onclick = () => openVehicle(v.vin); wrap.appendChild(b);
@@ -353,7 +363,7 @@
     const tb = $('tb'); tb.innerHTML = '';
     shown.forEach((v) => {
       const tr = document.createElement('tr'), st = statusOf(v), dd = d(v); tr.className = 'row2' + (sel.has(v.vin) ? ' sel' : '') + (v.vin === sideVin ? ' sel' : '');
-      tr.innerHTML = '<td><input type="checkbox"' + (sel.has(v.vin) ? ' checked' : '') + ' aria-label="Select"></td><td><img class="th2" alt=""></td><td class="mono">' + esc(v.vin) + '</td><td>' + esc(dd.year || '') + '</td><td>' + esc(dd.make || '') + '</td><td>' + esc(dd.model || '') + '</td><td>' + esc(dd.trim || '') + '</td><td>' + esc(v.lotLocation || '') + '</td><td>' + v.photos.length + '</td><td>' + esc(String(v.capturedAt || '').slice(0, 10)) + '</td><td><span class="chip ' + st[1] + '">' + st[0] + '</span></td>';
+      tr.innerHTML = '<td><input type="checkbox"' + (sel.has(v.vin) ? ' checked' : '') + ' aria-label="Select"></td><td><img class="th2" alt=""></td><td class="mono">' + esc(shortId(v.vin)) + '</td><td>' + esc(dd.year || '') + '</td><td>' + esc(dd.make || '') + '</td><td>' + esc(dd.model || '') + '</td><td>' + esc(dd.trim || '') + '</td><td>' + esc(v.lotLocation || '') + '</td><td>' + v.photos.length + '</td><td>' + esc(String(v.capturedAt || '').slice(0, 10)) + '</td><td><span class="chip ' + st[1] + '">' + st[0] + '</span></td>';
       if (v.photos[0]) S.getPhoto(v.photos[0].id).then((r) => { if (r && r.blob) { const u = URL.createObjectURL(r.blob); thumbUrls.push(u); tr.querySelector('img').src = u; } });
       tr.querySelector('input').onclick = (e) => { e.stopPropagation(); if (e.target.checked) sel.add(v.vin); else sel.delete(v.vin); tr.classList.toggle('sel', e.target.checked); bulkRender(); };
       tr.onclick = () => openSide(v.vin); tb.appendChild(tr);

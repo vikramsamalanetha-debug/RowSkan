@@ -377,7 +377,7 @@
   function goHome() { closeScan(); stopCamera(); if (!Net.account()) { showAuth(); return; } show('sHome'); refreshHome(); renderConn(); }
   $('newVeh').onclick = () => openScan(false);
   $('q').addEventListener('input', function () { searchText = this.value.trim(); refreshHome(); });
-  $('syncNow').onclick = () => { if (!Net.relayConfigured()) { toast('Syncing between devices is not turned on in this copy yet'); return; } Net.syncNow().then(() => toast('Checked for changes')); };
+  $('syncNow').onclick = () => { if (!Net.relayConfigured()) { toast('Syncing between devices is not turned on in this copy yet'); return; } showSyncing = true; renderConn(); Net.syncNow().then(() => toast('Checked for changes')).then(() => { showSyncing = false; renderConn(); }, () => { showSyncing = false; renderConn(); }); };
   $('dSync').onclick = () => $('syncNow').onclick();
   $('connPill').onclick = openSettings; $('setBtn').onclick = openSettings;
   function csvEscape(v) { v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
@@ -562,12 +562,14 @@
   };
 
   /* ---------------------------------------------------------------- connection pill */
+  let showSyncing = false; // only say "Syncing…" when the person pressed Sync now; background checks stay silent
+  const setT = (el, v) => { if (el.textContent !== v) el.textContent = v; }; // only touch the page when the text really changed
   function renderConn() {
-    const s = Net.status(), dot = $('connDot'), txt = $('connTxt');
+    let s = Net.status(); if (s.state === 'syncing' && !showSyncing) s = Object.assign({}, s, { state: s.lastOk ? 'ok' : 'idle' }); const dot = $('connDot'), txt = $('connTxt');
     const map = { ok: ['on', 'Synced'], syncing: ['on', 'Syncing…'], offline: ['', 'Offline — will sync later'], needslink: ['bad', 'Link this device'], unconfigured: ['', 'On this device'], error: ['bad', 'Sync problem'], idle: ['', 'Starting…'] };
-    const m = map[s.state] || map.idle; dot.className = 'dot' + (m[0] ? ' ' + m[0] : ''); txt.textContent = m[1];
-    $('dSyncTxt').textContent = s.state === 'ok' && s.lastOk ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : s.state === 'syncing' ? 'Syncing…' : s.state === 'offline' ? 'Offline' : s.state === 'error' ? 'Sync problem' : '';
-    $('syncMsg').textContent = s.state === 'error' ? s.error : s.state === 'unconfigured' ? 'Syncing between devices is not turned on in this copy yet. Everything is saved on this device.' : s.state === 'ok' ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Your phone sends new vehicles right away; computers sync when opened or when you tap Sync now.' : s.state === 'offline' ? 'No connection. Everything is saved here and sends itself when you are back online.' : '';
+    const m = map[s.state] || map.idle; const cls = 'dot' + (m[0] ? ' ' + m[0] : ''); if (dot.className !== cls) dot.className = cls; setT(txt, m[1]);
+    setT($('dSyncTxt'), s.state === 'ok' && s.lastOk ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : s.state === 'syncing' ? 'Syncing…' : s.state === 'offline' ? 'Offline' : s.state === 'error' ? 'Sync problem' : '');
+    setT($('syncMsg'), s.state === 'error' ? s.error : s.state === 'unconfigured' ? 'Syncing between devices is not turned on in this copy yet. Everything is saved on this device.' : s.state === 'ok' ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Your phone sends new vehicles right away; computers sync when opened or when you tap Sync now.' : s.state === 'offline' ? 'No connection. Everything is saved here and sends itself when you are back online.' : '');
   }
   Net.on('status', (s) => { renderConn(); if (s.state === 'ok') decodePending(); if (s.state === 'needslink' && current === 'sHome') showLink('needkey'); if (current === 'sHome') refreshHome(); });
   Net.on('vehicle', (e) => {

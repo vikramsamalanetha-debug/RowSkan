@@ -95,6 +95,9 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     await D.evaluate(() => { window.__mut = 0; const o = new MutationObserver((m) => { window.__mut += m.length; }); o.observe(document.getElementById('tb'), { childList: true, subtree: true }); o.observe(document.getElementById('list'), { childList: true, subtree: true }); });
     for (let i = 0; i < 3; i++) { await D.click('#dSync'); await sleep(2500); }
     const n = await D.evaluate(() => window.__mut); ok(n === 0, 'three sync checks with nothing new did not redraw the list (mutations: ' + n + ')');
+    await D.evaluate(() => { window.__mut2 = 0; new MutationObserver((m) => { window.__mut2 += m.length; window.__mt = (window.__mt || {}); m.forEach(x => { const t = x.target; const k = (t.id || t.className || t.tagName) + ':' + x.type + ':' + (x.attributeName || ''); window.__mt[k] = (window.__mt[k] || 0) + 1; }); }).observe(document.getElementById('sHome'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] }); });
+    for (let i = 0; i < 3; i++) { await D.evaluate(() => window.RS_Net.syncNow()); await sleep(1500); }
+    const n2 = await D.evaluate(() => window.__mut2); ok(n2 <= 3, 'background sync checks leave the page alone (only the "last synced" time changes) (changes: ' + n2 + ')');
     await D.fill('#q', 'honda'); await sleep(400); ok(await D.evaluate(() => window.__mut) > 0, 'but searching still redraws it');
     ok(D.errs.length === 0, 'no page errors');
   } catch (e) { fail++; console.log('  FAIL exception:', e.message.split('\n')[0]); }

@@ -27,7 +27,7 @@ async function setup() {
   const certId = cert.data.id; fs.writeFileSync(STATE, JSON.stringify({ certId })); // remembered first so cleanup can remove it even if a later step fails
   fs.writeFileSync(cer, Buffer.from(cert.data.attributes.certificateContent, 'base64'));
   run('openssl', ['x509', '-inform', 'der', '-in', cer, '-out', pem]);
-  run('openssl', ['pkcs12', '-export', '-inkey', key, '-in', pem, '-out', p12, '-passout', 'pass:' + P12PW]);
+  run('openssl', ['pkcs12', '-export', '-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES', '-macalg', 'sha1', '-inkey', key, '-in', pem, '-out', p12, '-passout', 'pass:' + P12PW]); // old-style encryption: macOS cannot read the newer OpenSSL 3 default
   const bid = await api('GET', '/v1/bundleIds?filter[identifier]=' + encodeURIComponent(BUNDLE) + '&limit=5');
   const bundle = (bid.data || []).find((x) => x.attributes.identifier === BUNDLE); if (!bundle) throw new Error('Bundle ID ' + BUNDLE + ' is not registered in the developer account.');
   const name = 'RowSkan CI ' + (E.GITHUB_RUN_NUMBER || Date.now());

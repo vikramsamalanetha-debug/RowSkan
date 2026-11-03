@@ -297,15 +297,18 @@
     }).then(function (bits) { var u = new Uint8Array(bits); return { id: Y.b64u(u.slice(0, 24)), key: Y.b64u(u.slice(24, 56)) }; });
   }
   var lastOffer = null;
-  function cancelOffer() { var id = lastOffer; lastOffer = null; return id ? relay('DELETE', '/v1/link?id=' + encodeURIComponent(id)).catch(function () { }) : Promise.resolve(); }
+  var offerP = null;
+  function cancelOffer() { // waits for a code that is still being written, then removes it
+    return Promise.resolve(offerP).catch(function () { }).then(function () { var id = lastOffer; lastOffer = null; return id ? relay('DELETE', '/v1/link?id=' + encodeURIComponent(id)).catch(function () { }) : null; });
+  }
   function offerCode() { // a SIGNED-IN device: make a code and leave the locked hand-off for the new device
     if (!meta.key || !acct) return Promise.reject(new Error('Sign in on this device first.'));
     var r = crypto.getRandomValues(new Uint8Array(10)), code = ''; for (var i = 0; i < 10; i++) code += CODE_CHARS[r[i] % 32];
-    return codeKeys(code).then(function (k) {
+    return (offerP = codeKeys(code).then(function (k) {
       return Y.encryptJson(k.key, { v: 1, key: meta.key, email: acct.email, uid: acct.uid, refreshToken: acct.refreshToken })
         .then(function (ct) { return relay('PUT', '/v1/link?id=' + encodeURIComponent(k.id), null, new TextEncoder().encode(ct)); })
         .then(function () { lastOffer = k.id; return { code: code.slice(0, 5) + '-' + code.slice(5), expires: Date.now() + CODE_TTL }; });
-    });
+    }));
   }
   function redeemCode(raw) { // the NEW device
     var code = normCode(raw); if (code.length !== 10) return Promise.reject(new Error('The code has 10 letters and numbers.'));

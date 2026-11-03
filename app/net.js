@@ -277,11 +277,43 @@
     }
     return poll().then(function (text) {
       if (!text) return null;
-      return Y.openHandoff(req.priv, text).then(function (p) {
-        if (!p || !p.key) throw new Error('That link was not valid.');
-        var s = setKey(p.key);
-        if (!acct && p.refreshToken) { acct = { email: p.email || '', uid: p.uid || '', refreshToken: p.refreshToken }; s = s.then(function () { return refresh(); }); }
-        return s.then(function () { return { email: p.email }; });
+      return Y.openHandoff(req.priv, text).then(finishHandoff);
+    });
+  }
+  function finishHandoff(p) {
+    if (!p || !p.key) throw new Error('That link was not valid.');
+    var s = setKey(p.key);
+    if (!acct && p.refreshToken) { acct = { email: p.email || '', uid: p.uid || '', refreshToken: p.refreshToken }; s = s.then(function () { return refresh(); }); }
+    return s.then(function () { return { email: p.email }; });
+  }
+  /* ---- short code: the signed-in computer shows a 10-character code, the new phone types it (no camera needed).
+   * The code never leaves the two screens; it only derives where the hand-off is stored and the key that locks it. */
+  var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', CODE_TTL = 300000;
+  function normCode(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function codeKeys(code) {
+    var e = new TextEncoder();
+    return crypto.subtle.importKey('raw', e.encode(code), 'PBKDF2', false, ['deriveBits']).then(function (b) {
+      return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: e.encode('rowskan-code-v1'), iterations: 150000 }, b, 512);
+    }).then(function (bits) { var u = new Uint8Array(bits); return { id: Y.b64u(u.slice(0, 24)), key: Y.b64u(u.slice(24, 56)) }; });
+  }
+  var lastOffer = null;
+  function cancelOffer() { var id = lastOffer; lastOffer = null; return id ? relay('DELETE', '/v1/link?id=' + encodeURIComponent(id)).catch(function () { }) : Promise.resolve(); }
+  function offerCode() { // a SIGNED-IN device: make a code and leave the locked hand-off for the new device
+    if (!meta.key || !acct) return Promise.reject(new Error('Sign in on this device first.'));
+    var r = crypto.getRandomValues(new Uint8Array(10)), code = ''; for (var i = 0; i < 10; i++) code += CODE_CHARS[r[i] % 32];
+    return codeKeys(code).then(function (k) {
+      return Y.encryptJson(k.key, { v: 1, key: meta.key, email: acct.email, uid: acct.uid, refreshToken: acct.refreshToken })
+        .then(function (ct) { return relay('PUT', '/v1/link?id=' + encodeURIComponent(k.id), null, new TextEncoder().encode(ct)); })
+        .then(function () { lastOffer = k.id; return { code: code.slice(0, 5) + '-' + code.slice(5), expires: Date.now() + CODE_TTL }; });
+    });
+  }
+  function redeemCode(raw) { // the NEW device
+    var code = normCode(raw); if (code.length !== 10) return Promise.reject(new Error('The code has 10 letters and numbers.'));
+    return codeKeys(code).then(function (k) {
+      var got = CFG.fs ? fsx().linkGet(k.id) : fetch(CFG.relayUrl + '/v1/link?id=' + encodeURIComponent(k.id), { cache: 'no-store' }).then(function (r) { return r.status === 200 ? r.text() : null; });
+      return got.then(function (txt) {
+        if (!txt) throw new Error('That code was not found or has expired. Show a new code on your other device and try again.');
+        return Y.decryptJson(k.key, txt).then(finishHandoff, function () { throw new Error('That code did not work.'); });
       });
     });
   }
@@ -318,7 +350,7 @@
     CFG: CFG, wire: wire, on: on, passwordProblem: passwordProblem, loadMeta: loadMeta, signUp: signUp, signIn: signIn, sendReset: sendReset,
     account: function () { return acct; }, hasKey: function () { return !!meta.key; }, setName: setName, deviceName: function () { return meta.name; }, deviceId: function () { return meta.deviceId; },
     start: start, stop: stop, syncNow: cycle, kickSoon: kickSoon, status: function () { return Object.assign({}, st); }, nowIso: nowIso,
-    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink,
+    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink, offerCode: offerCode, cancelOffer: cancelOffer, redeemCode: redeemCode,
     listDevices: listDevices, removeDevice: removeDevice, signOut: signOut, deleteAccount: deleteAccount, relayConfigured: configured
   };
 })();

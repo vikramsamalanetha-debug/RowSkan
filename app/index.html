@@ -159,8 +159,12 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 <section class="screen" id="sLink">
   <div class="top"><button class="pill" id="linkBack">‹ Back</button><h1 style="text-align:center">Link this device</h1><span style="width:64px"></span></div>
   <div class="body wrap" style="max-width:480px">
+    <div class="card"><b>Type the code from your other device</b>
+      <p class="small" style="margin:6px 0 8px">On your computer (already signed in), open <b>Settings → Add a device</b>. It shows a 10-character code. Type it here.</p>
+      <input type="text" class="free" id="codeIn" placeholder="ABCDE-FGHJK" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" style="text-align:center;font-size:22px;letter-spacing:2px">
+      <button class="primary" id="codeGo" style="width:100%;margin-top:8px">Link this device</button></div>
     <div class="card" style="text-align:center">
-      <p style="margin:0 0 10px"><b>On a device that already has RowSkan</b>, open <b>Settings → Add a device</b> and scan this code.</p>
+      <p style="margin:0 0 10px"><b>Or</b>, on a device that already has RowSkan, open <b>Settings → Add a device</b> and scan this code.</p>
       <div class="qr" id="linkQr"></div>
       <p class="small" id="linkWait" style="margin:10px 0 0">Waiting for approval…</p>
     </div>
@@ -278,6 +282,10 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 <section class="screen" id="sApprove">
   <div class="top"><button class="pill" id="apBack">‹ Back</button><h1 style="text-align:center">Add a device</h1><span style="width:64px"></span></div>
   <div class="body wrap" style="max-width:480px">
+    <div class="card" id="offerCard" style="text-align:center"><b>Add your phone or another computer</b>
+      <p class="small" style="margin:6px 0 8px">On the new device open RowSkan, sign in and choose <b>Type the code</b>. Enter this code:</p>
+      <div id="offerCode" style="font-size:34px;font-weight:700;letter-spacing:3px;font-family:ui-monospace,monospace;margin:8px 0">…</div>
+      <div class="small" id="offerNote"></div><button id="offerGo" style="width:100%;margin-top:8px">New code</button></div>
     <div id="apAsk" class="card">
       <b>Scan the code shown on the new device</b>
       <div class="cam" id="apCam" style="margin-top:8px"><video id="apVideo" playsinline muted autoplay></video></div>

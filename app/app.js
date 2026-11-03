@@ -547,7 +547,19 @@
 
   /* ---------------------------------------------------------------- approve a new device */
   let pendingApproval = null, apReq = null, apScanning = false;
-  function openApprove() { show('sApprove'); $('apAsk').hidden = false; $('apConfirm').hidden = true; showErr($('apErr'), ''); $('apPaste').value = ''; apReq = null; startApScan(); }
+  let offerT = null;
+  function newOffer() {
+    clearInterval(offerT); Net.cancelOffer(); $('offerCode').textContent = '…'; $('offerNote').textContent = '';
+    if (!Net.relayConfigured() || !Net.hasKey()) { $('offerCode').textContent = '—'; $('offerNote').textContent = 'Sign in and finish syncing on this device first.'; return; }
+    Net.offerCode().then((o) => {
+      $('offerCode').textContent = o.code;
+      const tick = () => { const left = Math.max(0, Math.round((o.expires - Date.now()) / 1000)); $('offerNote').textContent = left ? 'Works once, for ' + Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' more.' : 'Expired — tap New code.'; if (!left) clearInterval(offerT); };
+      tick(); offerT = setInterval(tick, 1000);
+    }).catch((e) => { $('offerCode').textContent = '—'; $('offerNote').textContent = e.message; });
+  }
+  $('offerGo').onclick = newOffer;
+  $('codeGo').onclick = () => { $('codeGo').disabled = true; showErr($('linkErr'), ''); Net.redeemCode($('codeIn').value).then(() => { linkToken++; Net.start(); toast('Device linked'); goHome(); }).catch((e) => showErr($('linkErr'), e.message)).then(() => { $('codeGo').disabled = false; }); };
+  function openApprove() { newOffer(); show('sApprove'); $('apAsk').hidden = false; $('apConfirm').hidden = true; showErr($('apErr'), ''); $('apPaste').value = ''; apReq = null; startApScan(); }
   function startApScan() {
     $('apNote').hidden = true; $('apCam').hidden = false;
     const det = ('BarcodeDetector' in window) ? new window.BarcodeDetector({ formats: ['qr_code'] }) : null;
@@ -569,7 +581,7 @@
 
   /* ---------------------------------------------------------------- settings */
   function openSettings() {
-    closeScan(); stopApScan(); show('sSet'); const a = Net.account();
+    closeScan(); stopApScan(); clearInterval(offerT); Net.cancelOffer(); show('sSet'); const a = Net.account();
     $('setAcct').textContent = a ? a.email : ''; $('devName').value = Net.deviceName();
     S.allVeh().then((l) => { const live1 = l.filter(live); let n = 0; live1.forEach((v) => { n += v.photos.length; }); $('setStore').textContent = live1.length + ' vehicles · ' + n + ' photos stored on this device'; });
     const box = $('devList'); box.textContent = Net.relayConfigured() ? 'Loading…' : 'Syncing between devices is not turned on in this copy yet.';

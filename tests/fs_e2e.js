@@ -103,7 +103,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     await vis(B, '#linkTxt:not([value=""])'); await sleep(400); const link = await B.inputValue('#linkTxt');
     await A.click('#setBtn'); await on(A, 'sSet'); await A.click('#addDev'); await on(A, 'sApprove'); await A.fill('#apPaste', link); await A.click('#apUse'); await A.click('#apYes'); await on(A, 'sSet');
     ok(await vis(B, '#sHome.on', 15000), 'computer is linked through Firestore');
-    ok(count('links/') === 0, 'the one-time link entry was deleted after use');
+    await sleep(800); ok(count('links/') === 0, 'the one-time link entry was deleted after use (and the unused typed code too)');
     await sleep(1500); await B.click('#dSync'); ok(await vis(B, '#tb tr:has-text("Camry")', 15000), 'computer receives the vehicle after Sync');
     await B.click('#tb tr:has-text("Camry") td:nth-child(3)'); ok(await vis(B, '#sPh img', 15000) && (await B.$$eval('#sPh img', l => l.length)) === 2, 'computer receives both photos, decrypted and displayed');
     await B.click('#sOpen'); await on(B, 'sVeh');

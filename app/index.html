@@ -217,13 +217,14 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 
 <!-- SCAN VIN -->
 <section class="screen" id="sScan">
-  <div class="top"><button class="pill" id="scanBack">‹ Back</button><h1 style="text-align:center">Scan the VIN</h1><span style="width:64px"></span></div>
+  <div class="top"><button class="pill" id="scanBack">‹ Back</button><h1 style="text-align:center">Add a vehicle</h1><span style="width:64px"></span></div>
   <div class="body wrap" style="max-width:640px">
-    <div class="cam"><video id="scanVideo" playsinline muted autoplay></video><div class="reticle"></div>
+    <button class="primary" id="camStart" style="min-height:60px">📷 Scan the VIN with the camera</button>
+    <div class="cam" id="scanCam" hidden><video id="scanVideo" playsinline muted autoplay></video><div class="reticle"></div>
       <div class="hint" id="scanHint">Hold the barcode inside the box</div></div>
     <div class="banner" id="scanNote" hidden></div>
-    <div class="row"><button id="torchBtn" hidden>🔦 Light</button><button id="scanPhotoBtn" hidden>🖼 Pick a photo</button></div>
-    <div class="card"><b>Or type it</b>
+    <div class="row"><button id="torchBtn" hidden>🔦 Light</button><button id="camStop" hidden>Stop camera</button><button id="scanPhotoBtn">🖼 Read VIN from a photo</button></div>
+    <div class="card"><b>Type the VIN or serial number</b>
       <input type="text" id="vinIn" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="VIN, or serial number for older vehicles" style="margin-top:8px" class="mono">
       <div class="small" id="vinMsg" style="margin-top:6px"></div>
       <button class="primary" id="vinGo" style="margin-top:8px;width:100%" disabled>Use this VIN</button>

@@ -65,7 +65,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     await D.click('th[data-k="vin"]'); await sleep(300); const v2 = await D.$$eval('#tb tr td:nth-child(3)', t => t.map(x => x.textContent)); ok(v2.join() === vins.slice().reverse().join(), 'second click reverses the sort');
     await D.fill('#q', '1FTFW'); await sleep(300); ok(await D.$$eval('#tb tr', r => r.length) === 1, 'search box filters the table'); await D.fill('#q', '');
     await D.click('#tb tr:has-text("' + VIN + '") td:nth-child(3)'); ok(await vis(D, '#side:not([hidden])'), 'clicking a row opens the side panel');
-    ok((await D.inputValue('#sNote')) === 'Clean, one owner', 'side panel shows the notes imported from the spreadsheet');
+    await sleep(500); ok((await D.inputValue('#sNote')) === 'Clean, one owner', 'side panel shows the notes imported from the spreadsheet');
     await D.fill('#sLot', 'Front line'); await D.click('#sSave'); await sleep(400);
     ok(await D.$$eval('#tb tr', r => r.some(x => /Front line/.test(x.textContent))), 'saving in the side panel updates the table');
     await D.setInputFiles('#importFile', '/tmp/rk/inv2.csv'); await vis(D, '#mapDlg.on'); await D.click('#mapGo'); await sleep(800);

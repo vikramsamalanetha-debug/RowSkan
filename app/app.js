@@ -67,15 +67,23 @@
       detector = want.length ? new window.BarcodeDetector({ formats: want }) : false;
     }).catch(() => { detector = false; });
   }
-  function openScan() {
-    show('sScan'); hits = { vin: null, n: 0 }; $('vinIn').value = ''; vinInput(); $('scanNote').hidden = true; $('torchBtn').hidden = true;
-    initDetector().then(() => { $('scanPhotoBtn').hidden = false; return startCamera($('scanVideo')); }).then(() => {
+  let camUsed = false;
+  function openScan(auto) {
+    show('sScan'); hits = { vin: null, n: 0 }; $('vinIn').value = ''; vinInput(); $('scanNote').hidden = true; $('torchBtn').hidden = true; $('camStop').hidden = true;
+    $('scanCam').hidden = true; $('camStart').hidden = false; scanning = false; stopCamera();
+    if (auto && camUsed) startScan();
+  }
+  function startScan() {
+    $('scanCam').hidden = false; $('camStart').hidden = true; $('camStop').hidden = false; camUsed = true;
+    initDetector().then(() => startCamera($('scanVideo'))).then(() => {
       const tr = stream && stream.getVideoTracks()[0], caps = tr && tr.getCapabilities ? tr.getCapabilities() : {};
       $('torchBtn').hidden = !caps.torch;
-      if (!detector) { $('scanNote').hidden = false; $('scanNote').textContent = 'Automatic reading works best on barcode stickers (Code 39). If it does not catch, tap “Pick a photo” or type the VIN.'; }
+      if (!detector) { $('scanNote').hidden = false; $('scanNote').textContent = 'Automatic reading works best on barcode stickers (Code 39). If it does not catch, tap “Read VIN from a photo” or type the number.'; }
       scanning = true; scanLoop();
-    }).catch((e) => { $('scanNote').hidden = false; $('scanNote').textContent = 'Camera not available (' + (e && e.message || e) + '). You can still type the VIN or pick a photo.'; });
+    }).catch((e) => { $('scanCam').hidden = true; $('camStart').hidden = false; $('camStop').hidden = true; $('scanNote').hidden = false; $('scanNote').textContent = 'Camera not available (' + (e && e.message || e) + '). You can still type the number, read it from a photo, or add the vehicle without one.'; });
   }
+  $('camStart').onclick = startScan;
+  $('camStop').onclick = () => { camUsed = false; openScan(false); };
   function closeScan() { scanning = false; stopCamera(); }
   function scanLoop() {
     if (!scanning) return;
@@ -236,7 +244,7 @@
   $('vehDone').onclick = () => {
     if (!cur.photos.length && !confirm('No photos taken for this vehicle. Continue anyway?')) return;
     const vin = cur.vin;
-    saveText().then(leaveVehicle).then(() => { toast('Saved ' + vin.slice(-6)); ignore = { vin, until: Date.now() + 20000 }; cur = null; Net.kickSoon(); openScan(); });
+    saveText().then(leaveVehicle).then(() => { toast('Saved ' + vin.slice(-6)); ignore = { vin, until: Date.now() + 20000 }; cur = null; Net.kickSoon(); openScan(true); });
   };
   $('vehBack').onclick = () => { saveText().then(leaveVehicle).then(() => { cur = null; Net.kickSoon(); goHome(); }); };
   $('vehDel').onclick = () => {
@@ -276,7 +284,7 @@
     });
   }
   function goHome() { closeScan(); stopCamera(); if (!Net.account()) { showAuth(); return; } show('sHome'); refreshHome(); renderConn(); }
-  $('newVeh').onclick = openScan;
+  $('newVeh').onclick = () => openScan(false);
   $('q').addEventListener('input', function () { searchText = this.value.trim(); refreshHome(); });
   $('syncNow').onclick = () => { if (!Net.relayConfigured()) { toast('Syncing between devices is not turned on in this copy yet'); return; } Net.syncNow().then(() => toast('Checked for changes')); };
   $('connPill').onclick = openSettings; $('setBtn').onclick = openSettings;

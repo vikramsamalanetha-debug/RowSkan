@@ -45,7 +45,11 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
   try {
     console.log('\n[No-VIN vehicles]');
     const A = await mk(); await signUp(A, 'old@example.com', 'Old-Cars-1962'); await on(A, 'sHome');
-    await A.click('#newVeh'); await on(A, 'sScan'); await A.fill('#vinIn', 'F100-1962'); await sleep(200);
+    await A.click('#newVeh'); await on(A, 'sScan');
+    ok(await A.isHidden('#scanCam') && await A.isVisible('#camStart') && await A.isVisible('#vinIn') && await A.isVisible('#noVinBtn'), 'camera does not start by itself; typing, photo and no-VIN options are all there');
+    await A.click('#camStart'); await sleep(500); ok(await A.isVisible('#scanCam') || await A.isVisible('#scanNote'), 'camera button starts scanning (or explains why not)');
+    if (await A.isVisible('#camStop')) await A.click('#camStop'); await sleep(200); ok(await A.isHidden('#scanCam'), 'camera area is closed again');
+    await A.fill('#vinIn', 'F100-1962'); await sleep(200);
     ok(/serial number/i.test(await A.textContent('#vinMsg')) && /serial/i.test(await A.textContent('#vinGo')), 'short serial accepted and labelled as a serial number');
     await A.click('#vinGo'); await on(A, 'sVeh');
     ok(/Serial number F1001962/.test(await A.textContent('#vehVin')), 'vehicle opens with the serial number');

@@ -562,6 +562,10 @@
   };
 
   /* ---------------------------------------------------------------- connection pill */
+  let autoLinkShown = false; // the link screen opens by itself once after signing in, never again (it only gets in the way)
+  function showLinkBanner(on) { const b = $('linkBanner'); if (b.hidden === !on) return; b.hidden = !on; }
+  $('lbGo').onclick = () => { const pw = $('lbPw').value; if (!pw) return; $('lbGo').disabled = true; showErr($('lbErr'), ''); Net.unlockWithPassword(pw).then(() => { $('lbPw').value = ''; toast('Connected'); }).catch((e) => showErr($('lbErr'), /password|credential/i.test(e.message) && !/locked/.test(e.message) ? 'That password is not right.' : e.message)).then(() => { $('lbGo').disabled = false; }); };
+  $('lbCode').onclick = () => showLink('needkey');
   let showSyncing = false; // only say "Syncing…" when the person pressed Sync now; background checks stay silent
   const setT = (el, v) => { if (el.textContent !== v) el.textContent = v; }; // only touch the page when the text really changed
   function renderConn() {
@@ -571,7 +575,7 @@
     setT($('dSyncTxt'), s.state === 'ok' && s.lastOk ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : s.state === 'syncing' ? 'Syncing…' : s.state === 'offline' ? 'Offline' : s.state === 'error' ? 'Sync problem' : '');
     setT($('syncMsg'), s.state === 'error' ? s.error : s.state === 'unconfigured' ? 'Syncing between devices is not turned on in this copy yet. Everything is saved on this device.' : s.state === 'ok' ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Your phone sends new vehicles right away; computers sync when opened or when you tap Sync now.' : s.state === 'offline' ? 'No connection. Everything is saved here and sends itself when you are back online.' : '');
   }
-  Net.on('status', (s) => { renderConn(); if (s.state === 'ok') decodePending(); if (s.state === 'needslink' && current === 'sHome') showLink('needkey'); if (current === 'sHome') refreshHome(); });
+  Net.on('status', (s) => { renderConn(); if (s.state === 'ok') decodePending(); if (s.state === 'needslink' && current === 'sHome' && !autoLinkShown) { autoLinkShown = true; showLink('needkey'); } showLinkBanner(s.state === 'needslink'); if (current === 'sHome') refreshHome(); });
   Net.on('vehicle', (e) => {
     if (current === 'sHome') refreshHome();
     if (current === 'sVeh' && cur && cur.vin === e.vin) S.getVeh(e.vin).then((db) => { if (!db || db.deleted) { toast('This vehicle was deleted on another device'); cur = null; goHome(); return; } const m = Y.mergeRecords(wire(db), wire(cur)); cur = Object.assign({}, cur, m); renderStrip(); });
@@ -608,7 +612,7 @@
   };
   $('authScanLink').onclick = () => showLink('signin');
   function afterAuth() {
-    Net.start();
+    autoLinkShown = false; Net.start();
     if (pendingApproval && Net.hasKey()) { startApprove(pendingApproval); pendingApproval = null; return; }
     goHome();
   }

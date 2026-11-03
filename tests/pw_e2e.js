@@ -107,9 +107,14 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     for (const k of envs().filter(k => /uid1\//.test(k))) DB.delete(k);
     const P2 = await mk(true); await signIn(P2, 'old@example.com', 'Old-Account-12');
     ok(await vis(P2, '#sLink.on #codeIn'), 'without a locked key the new phone still needs the code (fallback works)');
+    await P2.click('#linkBack'); await on(P2, 'sHome'); for (let i = 0; i < 3; i++) { await P2.evaluate(() => window.RS_Net.syncNow()); await sleep(1500); }
+    ok(await P2.isVisible('#sHome.on') && !(await P2.isVisible('#sLink.on')) && await P2.isVisible('#linkBanner'), 'the page stays where you are (no jumping to the QR screen); a banner offers to finish linking');
+    await P2.fill('#lbPw', 'Old-Account-12'); await P2.click('#lbGo'); ok(await vis(P2, '#lbErr:not([hidden])'), 'before password sign-in is turned on, the banner explains and offers the code instead');
     await D2.click('#setBtn'); await on(D2, 'sSet'); ok(await vis(D2, '#pwState:has-text("Off")'), 'Settings says password sign-in is off');
     await D2.fill('#pwEnable', 'Not-The-Password1'); await D2.click('#pwGo'); await sleep(1200); ok(envs().filter(k => /uid1\//.test(k)).length === 0, 'a wrong password does not turn it on');
     await D2.fill('#pwEnable', 'Old-Account-12'); await D2.click('#pwGo'); ok(await vis(D2, '#pwState:has-text("On")', 15000), 'the right password turns it on');
+    await P2.fill('#lbPw', 'Wrong-Wrong-123'); await P2.click('#lbGo'); await sleep(800);
+    await P2.fill('#lbPw', 'Old-Account-12'); await P2.click('#lbGo'); ok(await P2.waitForSelector('#linkBanner', { state: 'hidden', timeout: 25000 }).then(() => true, () => false), 'once it is on, entering the password in the banner connects this device');
     const P3 = await mk(true); await signIn(P3, 'old@example.com', 'Old-Account-12'); ok(await vis(P3, '#sHome.on', 30000) && !(await P3.isVisible('#sLink.on')), 'after that a new phone signs in with just the password');
     // password changed (reset): old locked key no longer fits; link once, then it works again
     console.log('\n[After a password reset]');

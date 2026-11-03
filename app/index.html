@@ -188,6 +188,11 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
     <div class="row wrapbtn"><button class="primary" id="newVeh" style="min-height:64px">📷 Scan or add a vehicle</button></div>
     <input type="search" id="q" placeholder="Search VIN, make, model, lot spot, notes" autocomplete="off">
     <div class="row" id="soldTabs" style="margin:8px 0"><button class="dsm primary" id="tabAct" style="flex:1">Active</button><button class="dsm" id="tabSold" style="flex:1">Sold</button></div>
+    <div class="card" id="linkBanner" hidden style="border-color:var(--bad)"><b>Finish setting up sync on this device</b>
+      <div class="small" style="margin:4px 0 8px">Your other devices are waiting. Enter your password to connect, or use a code from a device that is already linked.</div>
+      <input type="password" class="free" id="lbPw" placeholder="Your RowSkan password" autocomplete="current-password">
+      <div class="banner err" id="lbErr" hidden style="margin-top:8px"></div>
+      <div class="row" style="margin-top:8px"><button class="primary" id="lbGo">Connect</button><button id="lbCode">Use a code instead</button></div></div>
     <div class="card" id="syncCard"><div class="toggle"><div><b id="pendTxt">Nothing waiting</b><div class="small" id="syncMsg"></div></div>
       <button id="syncNow" style="flex:none">Sync now</button></div></div>
     <div class="desk" id="desk">

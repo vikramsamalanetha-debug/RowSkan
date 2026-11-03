@@ -113,6 +113,11 @@
     if (!pendingPw || !CFG.fs) return Promise.resolve(false);
     return getEnvelope().then(function (t) { return t ? Y.unwrapKey(pendingPw, t) : null; }).then(function (k) { if (!k) return false; return setKey(k).then(function () { return true; }); }).catch(function () { return false; });
   }
+  function unlockWithPassword(pw) { // this device is signed in but has no key: the password opens the locked copy
+    if (!acct) return Promise.reject(new Error('Sign in first.'));
+    return fbOp('signInWithPassword', { email: acct.email, password: pw, returnSecureToken: true }).then(adopt).then(function () { holdPw(pw); return tryEnvelope(); })
+      .then(function (ok) { if (!ok) throw new Error('No password-locked key is stored for this account yet. Use a code from a device that is already linked.'); kickSoon(); return true; });
+  }
   function passwordSignInState() { return getEnvelope().then(function (t) { return !!t; }).catch(function () { return null; }); }
   function enablePasswordSignIn(pw) { // for accounts that already had devices: prove the password, then store the locked key
     if (!meta.key || !acct) return Promise.reject(new Error('Sign in and finish syncing on this device first.'));
@@ -378,7 +383,7 @@
     CFG: CFG, wire: wire, on: on, passwordProblem: passwordProblem, loadMeta: loadMeta, signUp: signUp, signIn: signIn, sendReset: sendReset,
     account: function () { return acct; }, hasKey: function () { return !!meta.key; }, setName: setName, deviceName: function () { return meta.name; }, deviceId: function () { return meta.deviceId; },
     start: start, stop: stop, syncNow: cycle, kickSoon: kickSoon, status: function () { return Object.assign({}, st); }, nowIso: nowIso,
-    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink, offerCode: offerCode, passwordSignInState: passwordSignInState, enablePasswordSignIn: enablePasswordSignIn, cancelOffer: cancelOffer, redeemCode: redeemCode,
+    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink, offerCode: offerCode, unlockWithPassword: unlockWithPassword, passwordSignInState: passwordSignInState, enablePasswordSignIn: enablePasswordSignIn, cancelOffer: cancelOffer, redeemCode: redeemCode,
     listDevices: listDevices, removeDevice: removeDevice, signOut: signOut, deleteAccount: deleteAccount, relayConfigured: configured
   };
 })();

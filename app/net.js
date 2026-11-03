@@ -7,7 +7,8 @@
 (function () {
   'use strict';
   var CFG = Object.assign({ apiKey: '', projectId: '', relayUrl: '', appUrl: '', authBase: 'https://identitytoolkit.googleapis.com', tokenBase: 'https://securetoken.googleapis.com', pollMs: 8000 }, window.ROWSKAN_CONFIG || {});
-  CFG.relayUrl = String(CFG.relayUrl || '').replace(/\/+$/, ''); CFG.authBase = CFG.authBase.replace(/\/+$/, ''); CFG.tokenBase = CFG.tokenBase.replace(/\/+$/, '');
+  CFG.relayUrl = String(CFG.relayUrl || '').replace(/\/+$/, ''); CFG.fs = !CFG.relayUrl && !!CFG.projectId && CFG.firestore !== false; // default: sync through the user's own Firebase (Firestore); a relayUrl switches to a self-hosted relay
+  var configured = function () { return !!(CFG.relayUrl || CFG.fs); }; CFG.authBase = CFG.authBase.replace(/\/+$/, ''); CFG.tokenBase = CFG.tokenBase.replace(/\/+$/, '');
   var S = window.RS_Store, Y = window.RowSkanSync;
   var handlers = {};
   function on(ev, fn) { (handlers[ev] = handlers[ev] || []).push(fn); }
@@ -69,9 +70,13 @@
   function idToken() { return (session.idToken && session.exp - 60000 > Date.now()) ? Promise.resolve(session.idToken) : refresh().then(function () { return session.idToken; }); }
   function signedOut(msg) { acct = null; session = { idToken: '', exp: 0 }; S.metaDel('acct'); emit('signedout', msg || ''); }
 
+  var fsInst = null;
+  function fsx() { return fsInst || (fsInst = window.RS_Fs.make({ project: CFG.projectId, base: CFG.firestoreBase, token: idToken, uid: function () { return acct && acct.uid; } })); }
+
   /* ------------------------------------------------------------ relay */
   function relay(method, path, body, raw) {
-    if (!CFG.relayUrl) return Promise.reject(Object.assign(new Error('Sync server not set up'), { notConfigured: true }));
+    if (!configured()) return Promise.reject(Object.assign(new Error('Sync server not set up'), { notConfigured: true }));
+    if (CFG.fs) return fsx().call(method, path, body, raw);
     return idToken().then(function (tok) {
       var headers = { Authorization: 'Bearer ' + tok }; if (body) headers['Content-Type'] = 'application/json'; if (raw) headers['Content-Type'] = 'application/octet-stream';
       return fetch(CFG.relayUrl + path, { method: method, headers: headers, body: raw ? raw : (body ? JSON.stringify(body) : undefined), cache: 'no-store' });
@@ -206,7 +211,7 @@
   function applyMessage(m) {
     return Y.decodeMessage(meta.key, m.payload).then(function (msg) {
       if (msg.t === 'need-history') { return S.metaGet('historyFor').then(function (cur) { cur = cur || []; if (cur.indexOf(m.from) < 0) cur.push(m.from); return S.metaSet('historyFor', cur); }); }
-      if (msg.t === 'rec' && msg.rec && /^[A-HJ-NPR-Z0-9]{17}$/.test(String(msg.rec.vin))) return writeMerged(msg.rec.vin, msg.rec, msg.blobs || {});
+      if (msg.t === 'rec' && msg.rec && /^[A-Z0-9]{3,20}$/.test(String(msg.rec.vin))) return writeMerged(msg.rec.vin, msg.rec, msg.blobs || {});
     }, function () { var e = new Error('Could not read a message from another device (different account key).'); e.keyMismatch = true; throw e; });
   }
   function pull() {
@@ -224,7 +229,7 @@
   function cycle() {
     if (busy) return Promise.resolve();
     if (!acct) return Promise.resolve();
-    if (!CFG.relayUrl) { setState('unconfigured'); return Promise.resolve(); }
+    if (!configured()) { setState('unconfigured'); return Promise.resolve(); }
     busy = true; setState('syncing');
     return ensureDevice().then(function (r) {
       if (r === 'needslink') { setState('needslink'); return; }
@@ -243,9 +248,15 @@
   function kickSoon() { clearTimeout(kickT); kickT = setTimeout(cycle, 400); }
   function start() {
     stop();
-    timer = setInterval(function () { if (!document.hidden) cycle(); }, CFG.pollMs); cycle();
+    var every = CFG.fs ? (DEVICE_KIND === 'phone' ? 60000 : 300000) : CFG.pollMs; // free Firebase plan: be gentle with reads
+    timer = setInterval(function () { if (!document.hidden) cycle(); }, every); cycle();
   }
-  function stop() { clearInterval(timer); timer = null; }
+  function stop() { clearInterval(timer); timer = null; clearInterval(boostT); boostT = null; }
+  var boostT = null;
+  function boost(ms) { // after approving a new device, check often for a couple of minutes so its inventory arrives within seconds
+    clearInterval(boostT); var until = Date.now() + (ms || 120000);
+    boostT = setInterval(function () { if (Date.now() > until) { clearInterval(boostT); boostT = null; return; } cycle(); }, 4000);
+  }
   window.addEventListener('online', function () { if (acct) cycle(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && acct) cycle(); });
 
@@ -260,10 +271,9 @@
   function awaitLink(req, isCancelled) { // poll the relay until the signed-in device leaves the hand-off
     function poll() {
       if (isCancelled && isCancelled()) return Promise.resolve(null);
-      return fetch(CFG.relayUrl + '/v1/link?id=' + encodeURIComponent(req.linkId), { cache: 'no-store' }).then(function (r) {
-        if (r.status === 200) return r.text();
-        return new Promise(function (res) { setTimeout(res, 1500); }).then(poll);
-      }).catch(function () { return new Promise(function (res) { setTimeout(res, 3000); }).then(poll); });
+      var got = CFG.fs ? fsx().linkGet(req.linkId) : fetch(CFG.relayUrl + '/v1/link?id=' + encodeURIComponent(req.linkId), { cache: 'no-store' }).then(function (r) { return r.status === 200 ? r.text() : null; });
+      return got.then(function (txt) { if (txt) return txt; return new Promise(function (res) { setTimeout(res, 1500); }).then(poll); })
+        .catch(function () { return new Promise(function (res) { setTimeout(res, 3000); }).then(poll); });
     }
     return poll().then(function (text) {
       if (!text) return null;
@@ -291,13 +301,13 @@
   function signOut(wipe) {
     stop();
     var p = Promise.resolve();
-    if (meta.deviceId && CFG.relayUrl && acct) p = relay('DELETE', '/v1/devices?deviceId=' + encodeURIComponent(meta.deviceId)).catch(function () { });
+    if (meta.deviceId && configured() && acct) p = relay('DELETE', '/v1/devices?deviceId=' + encodeURIComponent(meta.deviceId)).catch(function () { });
     return p.then(function () { return wipe ? S.wipe() : Promise.all([S.metaDel('acct'), S.metaDel('key'), S.metaDel('deviceId'), S.metaDel('lastSeq')]); })
       .then(function () { acct = null; meta.key = null; meta.deviceId = null; meta.lastSeq = 0; session = { idToken: '', exp: 0 }; emit('signedout', ''); });
   }
   function deleteAccount() { // wipes the relay's copy, the sign-in account itself, and everything on this device
     stop();
-    return (CFG.relayUrl ? relay('DELETE', '/v1/account').catch(function (e) { if (!e.offline && !e.notConfigured) throw e; }) : Promise.resolve())
+    return (configured() ? relay('DELETE', '/v1/account').catch(function (e) { if (!e.offline && !e.notConfigured) throw e; }) : Promise.resolve())
       .then(function () { return idToken(); })
       .then(function (tok) { return fbOp('delete', { idToken: tok }); })
       .then(function () { return S.wipe(); })
@@ -308,7 +318,7 @@
     CFG: CFG, wire: wire, on: on, passwordProblem: passwordProblem, loadMeta: loadMeta, signUp: signUp, signIn: signIn, sendReset: sendReset,
     account: function () { return acct; }, hasKey: function () { return !!meta.key; }, setName: setName, deviceName: function () { return meta.name; }, deviceId: function () { return meta.deviceId; },
     start: start, stop: stop, syncNow: cycle, kickSoon: kickSoon, status: function () { return Object.assign({}, st); }, nowIso: nowIso,
-    startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink,
-    listDevices: listDevices, removeDevice: removeDevice, signOut: signOut, deleteAccount: deleteAccount, relayConfigured: function () { return !!CFG.relayUrl; }
+    boost: boost, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink,
+    listDevices: listDevices, removeDevice: removeDevice, signOut: signOut, deleteAccount: deleteAccount, relayConfigured: configured
   };
 })();

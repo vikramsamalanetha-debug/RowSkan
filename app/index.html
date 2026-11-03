@@ -188,7 +188,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
         <select id="fYear"><option value="">All years</option></select>
         <select id="fLot"><option value="">All lot locations</option></select>
         <select id="fStat"><option value="">All vehicles</option><option value="nophoto">No photos</option><option value="nodetail">Details missing</option><option value="waiting">Waiting to sync</option></select>
-        <span class="sp small" id="dCount"></span>
+        <span class="sp small" id="dCount"></span><span class="small" id="dSyncTxt"></span><button class="dsm primary" id="dSync" style="font-size:15px">⟳ Sync now</button>
         <button class="dsm" id="dExport">⬇ Export CSV</button><button class="dsm" id="dImport">⬆ Import list / spreadsheet</button><button class="dsm" id="dPrint">🖨 Print</button>
       </div>
       <div class="dbulk" id="bulkBar" hidden><b id="bulkN"></b>
@@ -301,6 +301,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 <script src="code39.js"></script>
 <script src="sync.js"></script>
 <script src="store.js"></script>
+<script src="fsrelay.js"></script>
 <script src="net.js"></script>
 <script src="app.js"></script>
 </body>

@@ -1,0 +1,24 @@
+rules_version = '2';
+// RowSkan sync rules - a product of LIT America (www.litamerica.net)
+// Everything stored here is already encrypted on the user's devices; these rules only let each signed-in user
+// reach their own mailboxes. Paste into Firebase console > Firestore Database > Rules > Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // each signed-in user can read and write only their own devices, mailboxes and attachments
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // one-time hand-off used when a new device is linked by QR code: the id is a random 128-bit value
+    match /links/{id} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() < 30000;
+      allow update: if false;
+      allow delete: if true;
+    }
+  }
+}

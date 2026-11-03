@@ -276,7 +276,7 @@
         if (first) S.getPhoto(first.id).then((r) => { if (r && r.blob) { const u = URL.createObjectURL(r.blob); thumbUrls.push(u); b.querySelector('img').src = u; } });
         b.onclick = () => openVehicle(v.vin); wrap.appendChild(b);
       });
-      $('emptyMsg').hidden = shown.length > 0; $('emptyMsg').innerHTML = list.length ? 'No vehicle matches that search.' : 'No vehicles yet. Tap <b>Scan next vehicle</b>, or import a list of VINs below.';
+      $('emptyMsg').hidden = shown.length > 0; $('emptyMsg').innerHTML = list.length ? 'No vehicle matches that search.' : (Net.hasKey() && Net.relayConfigured() && Net.status().state === 'ok' ? 'No vehicles here yet. If you already have vehicles on your phone, open RowSkan there — they arrive within about a minute (then tap <b>Sync now</b>).<br>Or add or import vehicles below.' : 'No vehicles yet. Tap <b>Scan or add a vehicle</b>, or import a list below.');
       renderDesk(list);
       const pend = list.filter((v) => v.done && v.dirty).length;
       $('pendTxt').textContent = list.length + (list.length === 1 ? ' vehicle' : ' vehicles') + (pend && Net.relayConfigured() ? ' · ' + pend + ' waiting to sync' : '');
@@ -287,6 +287,7 @@
   $('newVeh').onclick = () => openScan(false);
   $('q').addEventListener('input', function () { searchText = this.value.trim(); refreshHome(); });
   $('syncNow').onclick = () => { if (!Net.relayConfigured()) { toast('Syncing between devices is not turned on in this copy yet'); return; } Net.syncNow().then(() => toast('Checked for changes')); };
+  $('dSync').onclick = () => $('syncNow').onclick();
   $('connPill').onclick = openSettings; $('setBtn').onclick = openSettings;
   function csvEscape(v) { v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   function exportList(list, name) {
@@ -419,7 +420,8 @@
     const s = Net.status(), dot = $('connDot'), txt = $('connTxt');
     const map = { ok: ['on', 'Synced'], syncing: ['on', 'Syncing…'], offline: ['', 'Offline — will sync later'], needslink: ['bad', 'Link this device'], unconfigured: ['', 'On this device'], error: ['bad', 'Sync problem'], idle: ['', 'Starting…'] };
     const m = map[s.state] || map.idle; dot.className = 'dot' + (m[0] ? ' ' + m[0] : ''); txt.textContent = m[1];
-    $('syncMsg').textContent = s.state === 'error' ? s.error : s.state === 'unconfigured' ? 'Syncing between devices is not turned on in this copy yet. Everything is saved on this device.' : s.state === 'ok' ? 'Changes are shared with your other devices automatically.' : s.state === 'offline' ? 'No connection. Everything is saved here and sends itself when you are back online.' : '';
+    $('dSyncTxt').textContent = s.state === 'ok' && s.lastOk ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : s.state === 'syncing' ? 'Syncing…' : s.state === 'offline' ? 'Offline' : s.state === 'error' ? 'Sync problem' : '';
+    $('syncMsg').textContent = s.state === 'error' ? s.error : s.state === 'unconfigured' ? 'Syncing between devices is not turned on in this copy yet. Everything is saved on this device.' : s.state === 'ok' ? 'Last synced ' + new Date(s.lastOk).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Your phone sends new vehicles right away; computers sync when opened or when you tap Sync now.' : s.state === 'offline' ? 'No connection. Everything is saved here and sends itself when you are back online.' : '';
   }
   Net.on('status', (s) => { renderConn(); if (s.state === 'ok') decodePending(); if (s.state === 'needslink' && current === 'sHome') showLink('needkey'); if (current === 'sHome') refreshHome(); });
   Net.on('vehicle', (e) => {
@@ -500,7 +502,7 @@
   function startApprove(req) { apReq = req; show('sApprove'); stopApScan(); $('apAsk').hidden = true; $('apConfirm').hidden = false; $('apName').textContent = req.name; showErr($('apErr'), ''); }
   $('apUse').onclick = () => { const r = Net.parseLink($('apPaste').value); if (!r) return showErr($('apErr'), 'That does not look like a RowSkan link.'); startApprove(r); };
   $('apNo').onclick = () => { apReq = null; openSettings(); };
-  $('apYes').onclick = () => { $('apYes').disabled = true; Net.approveLink(apReq).then(() => { toast('Device approved'); apReq = null; openSettings(); }).catch((e) => showErr($('apErr'), e.status === 409 ? 'That code was already used. Ask for a new one.' : e.message)).then(() => { $('apYes').disabled = false; }); };
+  $('apYes').onclick = () => { $('apYes').disabled = true; Net.approveLink(apReq).then(() => { Net.boost(); toast('Device approved'); apReq = null; openSettings(); }).catch((e) => showErr($('apErr'), e.status === 409 ? 'That code was already used. Ask for a new one.' : e.message)).then(() => { $('apYes').disabled = false; }); };
   $('apBack').onclick = () => { stopApScan(); openSettings(); };
 
   /* ---------------------------------------------------------------- settings */

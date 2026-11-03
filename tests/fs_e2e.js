@@ -98,6 +98,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     ok(Array.from(DB.keys()).some(k => /\/devices\/[^/]+$/.test(k)), 'phone registered itself as a device');
 
     console.log('\n[2] Computer links like WhatsApp Web, then taps Sync');
+    for (const k of Array.from(DB.keys())) if (k.endsWith('/meta/keyenv')) DB.delete(k); // simulate an account made before password sign-in existed
     const B = await mk(false); await B.goto('http://127.0.0.1:18900/'); await on(B, 'sAuth'); await B.fill('#authEmail', 'fs@example.com'); await B.fill('#authPw', 'Fire-Base-123'); await B.click('#authGo');
     ok(await vis(B, '#sLink.on'), 'computer asks to be linked');
     await vis(B, '#linkTxt:not([value=""])'); await sleep(400); const link = await B.inputValue('#linkTxt');

@@ -34,6 +34,20 @@
   const encryptJson = async (keyB64, obj) => b64u(await encryptBytes(keyB64, enc.encode(JSON.stringify(obj))));
   const decryptJson = async (keyB64, str) => JSON.parse(dec.decode(await decryptBytes(keyB64, unb64u(str))));
 
+
+  /* ---- the account key locked with the password, so a new device can sign in with email + password alone ---- */
+  async function pwKey(password, salt, iter) {
+    const base = await S.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    return b64u(new Uint8Array(await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, 256)));
+  }
+  async function wrapKey(password, keyB64) {
+    const salt = rand(16), iter = 200000;
+    return JSON.stringify({ v: 1, salt: b64u(salt), iter, ct: await encryptJson(await pwKey(password, salt, iter), { key: keyB64 }) });
+  }
+  async function unwrapKey(password, text) { // returns the account key, or null when the password does not fit
+    try { const j = JSON.parse(text); if (j.v !== 1) return null; const o = await decryptJson(await pwKey(password, unb64u(j.salt), Math.min(+j.iter || 200000, 600000)), j.ct); return o && o.key ? o.key : null; } catch (e) { return null; }
+  }
+
   /* ---- one-time hand-off to a new device (QR link) ---- */
   async function newLinkKeys() { // the NEW device makes this and shows the public part in the QR
     const kp = await S.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
@@ -93,5 +107,5 @@
   const decodeMessage = (keyB64, text) => decryptJson(keyB64, text);
 
   return { b64u, unb64u, randomId, newAccountKey, encryptBytes, decryptBytes, encryptJson, decryptJson,
-    newLinkKeys, sealHandoff, openHandoff, FIELDS, stamp, mergeRecords, sameRecord, encodeMessage, decodeMessage };
+    newLinkKeys, sealHandoff, openHandoff, wrapKey, unwrapKey, FIELDS, stamp, mergeRecords, sameRecord, encodeMessage, decodeMessage };
 });

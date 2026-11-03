@@ -175,6 +175,8 @@
             .then(function (bl) { return bl.reduce(function (p, b) { return p.then(function () { return listDocs('users/' + uid() + '/blobs/' + lastSeg(b.name) + '/c').then(function (cs) { return commit(cs.map(function (c) { return del(c.name); }).concat([del(b.name)])); }); }); }, Promise.resolve()); })
             .then(function () { return { ok: true }; });
         }
+        if (key === 'GET /v1/keyenv') return getDoc('users/' + uid() + '/meta/keyenv').then(function (d) { return { body: d ? gs(d.fields, 'body') : '' }; });
+        if (key === 'PUT /v1/keyenv') { var kt = new TextDecoder().decode(bytesOf(raw)); if (kt.length > 4000) return Promise.reject(fail(413, 'Too large.')); return commit([{ update: { name: nameOf('users/' + uid() + '/meta/keyenv'), fields: { body: S(kt), ts: I(Date.now()) } } }]).then(function () { return { ok: true }; }); }
         if (key === 'DELETE /v1/link') { var did = q.get('id'); if (!LINK_RE.test(did || '')) return Promise.reject(fail(400, 'Invalid link id.')); return http('DELETE', base + '/links/' + did, null, true).catch(function () { }).then(function () { return { ok: true }; }); }
         if (key === 'PUT /v1/link') return linkPut(q.get('id'), raw).then(function () { return { ok: true }; });
         return Promise.reject(fail(404, 'Not found.'));

@@ -643,6 +643,7 @@
   }
   $('offerGo').onclick = newOffer;
   $('codeGo').onclick = () => { $('codeGo').disabled = true; showErr($('linkErr'), ''); Net.redeemCode($('codeIn').value).then(() => { linkToken++; Net.start(); toast('Device linked'); goHome(); }).catch((e) => showErr($('linkErr'), e.message)).then(() => { $('codeGo').disabled = false; }); };
+  $('pwGo').onclick = () => { const pw = $('pwEnable').value; if (!pw) return toast('Enter your password'); $('pwGo').disabled = true; Net.enablePasswordSignIn(pw).then(() => { $('pwEnable').value = ''; toast('Turned on'); openSettings(); }).catch((e) => toast(e.code === 'INVALID_LOGIN_CREDENTIALS' || /password|credential/i.test(e.message) ? 'That password is not right' : e.message)).then(() => { $('pwGo').disabled = false; }); };
   function openApprove() { newOffer(); show('sApprove'); $('apAsk').hidden = false; $('apConfirm').hidden = true; showErr($('apErr'), ''); $('apPaste').value = ''; apReq = null; startApScan(); }
   function startApScan() {
     $('apNote').hidden = true; $('apCam').hidden = false;
@@ -670,6 +671,8 @@
     S.allVeh().then((l) => { const live1 = l.filter(live); let n = 0; live1.forEach((v) => { n += v.photos.length; }); $('setStore').textContent = live1.length + ' vehicles · ' + n + ' photos stored on this device'; });
     const box = $('devList'); box.textContent = Net.relayConfigured() ? 'Loading…' : 'Syncing between devices is not turned on in this copy yet.';
     $('addDev').disabled = !Net.relayConfigured() || !Net.hasKey();
+    $('pwCard').hidden = !Net.relayConfigured(); $('pwForm').hidden = true; $('pwState').textContent = 'Checking…';
+    Net.passwordSignInState().then((on) => { if (on === null) { $('pwState').textContent = 'Could not check right now.'; return; } $('pwState').textContent = on ? 'On. A new phone or computer only needs your email and password. (If you ever change your password, sign in once with the new one on this device to keep it working.)' : 'Off. New devices have to be linked with a code from this one.'; $('pwForm').hidden = on; });
     if (Net.relayConfigured()) Net.listDevices().then((r) => {
       box.innerHTML = '';
       r.devices.forEach((d) => {

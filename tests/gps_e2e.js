@@ -105,7 +105,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     await P.click('#vehBack'); await on(P, 'sHome'); await sleep(1500);
     // the computer gets the position and a Map button
     const D = await mk(false); await D.goto('http://127.0.0.1:18900/'); await on(D, 'sAuth'); await D.fill('#authEmail', 'gps@example.com'); await D.fill('#authPw', 'Gps-Tests-123'); await D.click('#authGo');
-    ok(await vis(D, '#sLink.on #codeIn'), 'computer needs linking (as designed)');
+    ok(await vis(D, '#sHome.on', 20000), 'the computer signs in with just the password (no linking)');
     ok(P.errs.length === 0 && D.errs.length === 0, 'no page errors ' + JSON.stringify(P.errs.concat(D.errs)));
   } catch (e) { fail++; console.log('  FAIL exception:', e.message.split('\n')[0]); }
   console.log(`\n${pass} passed, ${fail} failed`);

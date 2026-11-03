@@ -90,6 +90,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
     console.log('\n[Link a phone by typing a code shown on the computer]');
     const D = await mk(false); await D.goto('http://127.0.0.1:18900/'); await on(D, 'sAuth'); await D.click('#tabUp'); await D.fill('#authEmail', 'code@example.com'); await D.fill('#authPw', 'Code-Tests-12'); await D.click('#authGo'); await on(D, 'sHome');
     await sleep(1500);
+    for (const k of Array.from(DB.keys())) if (k.endsWith('/meta/keyenv')) DB.delete(k); // simulate an account made before password sign-in existed
     const P = await mk(true); await P.goto('http://127.0.0.1:18900/'); await on(P, 'sAuth'); await P.fill('#authEmail', 'code@example.com'); await P.fill('#authPw', 'Code-Tests-12'); await P.click('#authGo');
     ok(await vis(P, '#sLink.on #codeIn'), 'a new phone signing in is asked for a code (no camera needed)');
     await D.click('#setBtn'); await on(D, 'sSet'); await D.click('#addDev'); await on(D, 'sApprove');

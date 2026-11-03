@@ -19,7 +19,7 @@
   var COMMON = ['password', 'password1', 'password12', 'password123', '12345678', '123456789', '1234567890', '11111111', '00000000', 'qwertyui', 'qwerty123', 'abcd1234', 'abc12345', 'iloveyou', 'letmein1', 'welcome1', 'admin123', 'rowskan1', 'rowskan123'];
   function passwordProblem(pw) {
     if (!pw) return 'Enter a password.';
-    if (pw.length < 8) return 'Use at least 8 characters.';
+    if (pw.length < 10) return 'Use at least 10 characters.';
     if (new TextEncoder().encode(pw).length > 72) return 'Use 72 characters or fewer.';
     if (/^(.)\1+$/.test(pw) || COMMON.indexOf(pw.toLowerCase()) >= 0) return 'That password is too easy to guess. Choose another one.';
     return null;
@@ -48,15 +48,18 @@
     session = { idToken: j.idToken || j.id_token, exp: Date.now() + (+(j.expiresIn || j.expires_in || 3600)) * 1000 };
     return S.metaSet('acct', acct).then(function () { return acct; });
   }
+  var pendingPw = null, pendingPwT = null;
+  function holdPw(pw) { pendingPw = pw; clearTimeout(pendingPwT); pendingPwT = setTimeout(function () { pendingPw = null; }, 15 * 60000); }
+  function dropPw() { pendingPw = null; clearTimeout(pendingPwT); }
   function signUp(email, pw) {
     var p = passwordProblem(pw); if (p) return Promise.reject(new Error(p));
     if (!CFG.apiKey) return Promise.reject(new Error('Sign-in is not set up in this copy of RowSkan.'));
-    return fbOp('signUp', { email: email.trim().toLowerCase(), password: pw, returnSecureToken: true }).then(adopt);
+    return fbOp('signUp', { email: email.trim().toLowerCase(), password: pw, returnSecureToken: true }).then(adopt).then(function (a) { holdPw(pw); return a; });
   }
   function signIn(email, pw) {
     if (!pw) return Promise.reject(new Error('Enter your password.'));
     if (!CFG.apiKey) return Promise.reject(new Error('Sign-in is not set up in this copy of RowSkan.'));
-    return fbOp('signInWithPassword', { email: email.trim().toLowerCase(), password: pw, returnSecureToken: true }).then(adopt);
+    return fbOp('signInWithPassword', { email: email.trim().toLowerCase(), password: pw, returnSecureToken: true }).then(adopt).then(function (a) { holdPw(pw); return a; });
   }
   function sendReset(email) { // always looks successful, so it never reveals who has an account
     return fbOp('sendOobCode', { requestType: 'PASSWORD_RESET', email: email.trim().toLowerCase() }).catch(function (e) { if (e.code === 'EMAIL_NOT_FOUND') return {}; throw e; });
@@ -96,7 +99,26 @@
     });
   }
   function setName(n) { meta.name = String(n || '').slice(0, 40); return S.metaSet('deviceName', meta.name); }
-  function setKey(k) { meta.key = k; return S.metaSet('key', k); }
+  function setKey(k) { meta.key = k; return S.metaSet('key', k).then(function () { return ensureEnvelope().catch(function () { }); }); }
+  /* the key locked with the password lives in the account (Firestore); only the password opens it */
+  function getEnvelope() { return CFG.fs ? relay('GET', '/v1/keyenv').then(function (r) { return r.body || ''; }) : Promise.resolve(''); }
+  function ensureEnvelope() { // after any sign-in with the password: make sure a locked copy of the key exists and fits this password
+    var pw = pendingPw; if (!pw || !meta.key || !acct || !CFG.fs) return Promise.resolve();
+    return getEnvelope().then(function (t) { return t ? Y.unwrapKey(pw, t) : null; }).then(function (k) {
+      if (k === meta.key) { dropPw(); return; }
+      return Y.wrapKey(pw, meta.key).then(function (body) { return relay('PUT', '/v1/keyenv', null, new TextEncoder().encode(body)); }).then(function () { dropPw(); });
+    });
+  }
+  function tryEnvelope() { // a new device: open the locked key with the password just typed
+    if (!pendingPw || !CFG.fs) return Promise.resolve(false);
+    return getEnvelope().then(function (t) { return t ? Y.unwrapKey(pendingPw, t) : null; }).then(function (k) { if (!k) return false; return setKey(k).then(function () { return true; }); }).catch(function () { return false; });
+  }
+  function passwordSignInState() { return getEnvelope().then(function (t) { return !!t; }).catch(function () { return null; }); }
+  function enablePasswordSignIn(pw) { // for accounts that already had devices: prove the password, then store the locked key
+    if (!meta.key || !acct) return Promise.reject(new Error('Sign in and finish syncing on this device first.'));
+    return fbOp('signInWithPassword', { email: acct.email, password: pw, returnSecureToken: true }).then(adopt).then(function () { return Y.wrapKey(pw, meta.key); })
+      .then(function (body) { return relay('PUT', '/v1/keyenv', null, new TextEncoder().encode(body)); }).then(function () { return true; });
+  }
   function resetDevice() { meta.deviceId = null; meta.lastSeq = 0; return Promise.all([S.metaDel('deviceId'), S.metaDel('lastSeq')]); }
   var others = []; // other devices on this account (from the last check)
   var DEVICE_KIND = (function () { var u = navigator.userAgent || ''; return /Android|iPhone|iPad|Mobile/i.test(u) ? 'phone' : /Windows/i.test(u) ? 'windows' : 'web'; })();
@@ -139,14 +161,17 @@
       var step = Promise.resolve();
       if (!meta.deviceId) { meta.deviceId = Y.randomId(12); step = S.metaSet('deviceId', meta.deviceId); }
       if (!meta.key) {
-        if (others.length) return step.then(function () { return 'needslink'; });   // other devices hold the key: link with one of them
-        step = step.then(function () { return setKey(Y.newAccountKey()); });         // first device on this account
+        step = step.then(function () { return tryEnvelope(); }).then(function (got) { if (got) return; if (others.length) throw { needslink: true }; return setKey(Y.newAccountKey()); });   // other devices hold the key: the password opens it, else link         // first device on this account
       }
-      if (mine) return step.then(function () { return 'ready'; });
-      return step.then(function () { meta.lastSeq = 0; return S.metaSet('lastSeq', 0); })
-        .then(function () { return relay('POST', '/v1/devices', { deviceId: meta.deviceId, name: meta.name || DEVICE_KIND, kind: DEVICE_KIND, pub: '' }); })
-        .then(function () { return others.length ? send({ t: 'need-history' }, 'ctl', [], undefined) : null; })
-        .then(function () { return 'ready'; });
+      step = step.then(function () { return 'go'; }, function (e) { if (e && e.needslink) return 'needslink'; throw e; });
+      return step.then(function (x) {
+        if (x === 'needslink') return x;
+        if (mine) return 'ready';
+        return Promise.resolve().then(function () { meta.lastSeq = 0; return S.metaSet('lastSeq', 0); })
+          .then(function () { return relay('POST', '/v1/devices', { deviceId: meta.deviceId, name: meta.name || DEVICE_KIND, kind: DEVICE_KIND, pub: '' }); })
+          .then(function () { return others.length ? send({ t: 'need-history' }, 'ctl', [], undefined) : null; })
+          .then(function () { return 'ready'; });
+      });
     });
   }
   function pushDirty() {
@@ -233,7 +258,7 @@
     busy = true; setState('syncing');
     return ensureDevice().then(function (r) {
       if (r === 'needslink') { setState('needslink'); return; }
-      return processHistory().then(pushDirty).then(pull).then(function () { setState('ok'); });
+      return ensureEnvelope().catch(function () { }).then(processHistory).then(pushDirty).then(pull).then(function () { setState('ok'); });
     }).catch(function (e) {
       if (e.offline) setState('offline');
       else if (e.keyMismatch) setState('error', e.message);
@@ -334,7 +359,7 @@
   function listDevices() { return relay('GET', '/v1/devices').then(function (r) { return { me: meta.deviceId, devices: r.devices || [] }; }); }
   function removeDevice(id) { return relay('DELETE', '/v1/devices?deviceId=' + encodeURIComponent(id)); }
   function signOut(wipe) {
-    stop();
+    stop(); dropPw();
     var p = Promise.resolve();
     if (meta.deviceId && configured() && acct) p = relay('DELETE', '/v1/devices?deviceId=' + encodeURIComponent(meta.deviceId)).catch(function () { });
     return p.then(function () { return wipe ? S.wipe() : Promise.all([S.metaDel('acct'), S.metaDel('key'), S.metaDel('deviceId'), S.metaDel('lastSeq')]); })
@@ -353,7 +378,7 @@
     CFG: CFG, wire: wire, on: on, passwordProblem: passwordProblem, loadMeta: loadMeta, signUp: signUp, signIn: signIn, sendReset: sendReset,
     account: function () { return acct; }, hasKey: function () { return !!meta.key; }, setName: setName, deviceName: function () { return meta.name; }, deviceId: function () { return meta.deviceId; },
     start: start, stop: stop, syncNow: cycle, kickSoon: kickSoon, status: function () { return Object.assign({}, st); }, nowIso: nowIso,
-    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink, offerCode: offerCode, cancelOffer: cancelOffer, redeemCode: redeemCode,
+    boost: boost, deviceKind: function () { return DEVICE_KIND; }, startLinkRequest: startLinkRequest, awaitLink: awaitLink, parseLink: parseLink, approveLink: approveLink, offerCode: offerCode, passwordSignInState: passwordSignInState, enablePasswordSignIn: enablePasswordSignIn, cancelOffer: cancelOffer, redeemCode: redeemCode,
     listDevices: listDevices, removeDevice: removeDevice, signOut: signOut, deleteAccount: deleteAccount, relayConfigured: configured
   };
 })();

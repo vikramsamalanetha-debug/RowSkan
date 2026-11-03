@@ -45,7 +45,7 @@ const VIN = '1HGCM82633A004352', VIN2 = '2T1BURHE0JC012345';
   try {
     console.log('\n[1] Device A: register and capture');
     const A = await mk(); await signUp(A, 'dealer@example.com', 'short');
-    ok(/8/.test(await A.textContent('#authErr')), 'weak password is refused with a clear message');
+    ok(/10/.test(await A.textContent('#authErr')), 'weak password is refused with a clear message');
     await A.fill('#authPw', 'Lot-Lizard-42'); await A.click('#authGo'); await on(A, 'sHome');
     ok(true, 'registered and landed on the inventory list');
     await A.click('#newVeh'); await on(A, 'sScan'); await A.fill('#vinIn', VIN); await A.click('#vinGo'); await on(A, 'sVeh');

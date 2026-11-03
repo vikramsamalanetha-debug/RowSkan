@@ -45,8 +45,13 @@ jobs:
         run: |
           set -e
           [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8_BASE64" ] && [ -n "$APPLE_TEAM_ID" ] || { echo "Missing App Store Connect secrets - see mobile/README.md"; exit 1; }
-          mkdir -p "$RUNNER_TEMP/keys"; echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
-          AUTH="-allowProvisioningUpdates -authenticationKeyPath $RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8 -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          KEYFILE="$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"; mkdir -p "$RUNNER_TEMP/keys"
+          if printf '%s' "$ASC_KEY_P8_BASE64" | grep -q "BEGIN PRIVATE KEY"; then printf '%s\n' "$ASC_KEY_P8_BASE64" > "$KEYFILE"   # the key was pasted as plain text
+          else printf '%s' "$ASC_KEY_P8_BASE64" | tr -d ' \r\n' | base64 --decode > "$KEYFILE"; fi
+          chmod 600 "$KEYFILE"
+          head -1 "$KEYFILE" | grep -q "BEGIN PRIVATE KEY" || { echo "The ASC_KEY_P8_BASE64 secret does not contain a valid Apple .p8 key (decoded size: $(wc -c < "$KEYFILE") bytes). Re-create the secret from the .p8 file."; exit 1; }
+          echo "Apple key file looks valid ($(wc -c < "$KEYFILE") bytes)"
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEYFILE -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
           WS=$( [ -d App.xcworkspace ] && echo "-workspace App.xcworkspace" || echo "-project App.xcodeproj" )
           xcodebuild $WS -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic MARKETING_VERSION=1.0.0 CURRENT_PROJECT_VERSION=${{ github.run_number }} $AUTH archive

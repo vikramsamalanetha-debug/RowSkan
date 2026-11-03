@@ -53,7 +53,7 @@ function saveConfig() { writeJsonAtomic(CONFIG_FILE, config); }
 // ROWSKAN_ACCOUNT_DEV=1 is for demos/testing only: accounts live in memory on this computer.
 const ACCOUNT_CFG = (() => {
   let c = {};
-  try { c = JSON.parse(fs.readFileSync(path.join(ROOT, 'account.config.json'), 'utf8')); } catch (e) { /* not set up */ }
+  try { c = JSON.parse(fs.readFileSync(process.env.ROWSKAN_ACCOUNT_CONFIG || path.join(ROOT, 'account.config.json'), 'utf8')); } catch (e) { /* not set up */ }
   return { key: String(process.env.ROWSKAN_FIREBASE_API_KEY || c.firebaseApiKey || '').trim(),
     base: String(process.env.ROWSKAN_FIREBASE_BASE || 'https://identitytoolkit.googleapis.com').replace(/\/+$/, '') };
 })();

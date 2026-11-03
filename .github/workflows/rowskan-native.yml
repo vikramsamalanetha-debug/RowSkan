@@ -1,0 +1,89 @@
+name: RowSkan native preview
+on:
+  pull_request:
+    paths: ['native/**', '.github/workflows/rowskan-native.yml']
+  push:
+    branches: ['rowskan/native-local-first']
+    paths: ['native/**', '.github/workflows/rowskan-native.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rowskan-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: android
+          - os: windows-latest
+            target: windows
+          - os: macos-14
+            target: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: native
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+      - name: Generate platform runners
+        run: flutter create --org net.litamerica --project-name rowskan --platforms android,ios,windows,macos .
+      - name: Configure permissions
+        run: |
+          python tool/configure.py
+          rm -f test/widget_test.dart
+      - run: flutter pub get
+      - name: Analyze source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter test
+      - name: Build Android test APK
+        if: matrix.target == 'android'
+        run: flutter build apk --debug
+      - name: Build Windows preview
+        if: matrix.target == 'windows'
+        run: flutter build windows --release
+      - name: Build Mac preview
+        if: matrix.target == 'macos'
+        run: flutter build macos --release
+      - name: Upload Android test APK
+        if: matrix.target == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RowSkan-Android-debug
+          path: native/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+      - name: Upload Windows app folder
+        if: matrix.target == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RowSkan-Windows-preview
+          path: native/build/windows/x64/runner/Release/
+          retention-days: 7
+      - name: Archive Mac application
+        if: matrix.target == 'macos'
+        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/rowskan.app RowSkan-Mac.zip
+      - name: Upload Mac preview
+        if: matrix.target == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RowSkan-Mac-preview
+          path: native/RowSkan-Mac.zip
+          retention-days: 7

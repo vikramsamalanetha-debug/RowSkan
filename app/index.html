@@ -118,6 +118,8 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 #mapDlg.on{display:flex}#mapDlg .card{max-width:520px;width:100%;display:flex;flex-direction:column;gap:10px}
 #mapDlg label{display:flex;justify-content:space-between;gap:10px;align-items:center}
 #mapDlg select{min-width:200px}
+#findDlg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:45;padding:16px}#findDlg.on{display:flex}#findDlg .card{max-width:420px;width:100%;text-align:center}
+#fArrow{width:150px;height:150px;margin:6px auto;transition:transform .25s}#fArrow svg{width:100%;height:100%}
 </style>
 </head>
 <body>
@@ -208,7 +210,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
           <div id="sDec" class="kv"></div>
           <input class="free" id="sLot" placeholder="Lot location" maxlength="40"><textarea id="sNote" rows="3" placeholder="Notes" maxlength="300"></textarea>
           <div class="row"><button class="primary dsm" id="sSave" style="font-size:15px">Save</button><button class="dsm" id="sOpen">Open / add photos</button></div>
-          <button class="dsm" id="sSold">Mark sold</button><button class="dsm" id="sShare">Share</button><button class="dsm" id="sDel" style="color:var(--bad)">Delete vehicle</button>
+          <button class="dsm" id="sMap" hidden>📍 Map</button><button class="dsm" id="sSold">Mark sold</button><button class="dsm" id="sShare">Share</button><button class="dsm" id="sDel" style="color:var(--bad)">Delete vehicle</button>
         </aside>
       </div>
     </div>
@@ -257,6 +259,7 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
     <div class="strip" id="strip"></div>
     <input type="text" class="free" id="locIn" placeholder="Lot spot / row (optional)" maxlength="60">
     <input type="text" class="free" id="noteIn" placeholder="Notes (optional)" maxlength="300">
+    <div class="row" style="align-items:center"><div class="small" id="gpsTxt" style="flex:1"></div><button id="gpsUpd">📍 Update spot</button><button id="gpsFind">Find</button></div>
     <div class="row"><button id="vehSold">Mark as sold</button><button id="vehShare">Share…</button></div>
     <input type="file" id="fileIn" accept="image/*" multiple hidden>
     <input type="file" id="fileScan" accept="image/*" hidden>
@@ -307,6 +310,10 @@ select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:
 </section>
 
 <div id="lb"><button id="lbX">Close ✕</button><img alt=""></div>
+    <div id="findDlg"><div class="card"><b id="fTitle">Find vehicle</b>
+      <div id="fArrow"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="3"/><path d="M50 10 L68 60 L50 50 L32 60 Z" fill="#f59e0b" stroke="#b45309" stroke-width="2" stroke-linejoin="round"/></svg></div>
+      <div style="font-size:34px;font-weight:700" id="fDist">…</div><div class="small" id="fNote">Getting your position…</div>
+      <div class="row" style="margin-top:10px"><button id="fMaps">Open in Maps</button><button class="primary" id="fClose">Close</button></div></div></div>
     <div id="mapDlg"><div class="card"><b>Import a spreadsheet (CSV)</b><div class="small" id="mapInfo"></div>
       <label>VIN column <select id="mCol0"></select></label><label>Lot location column <select id="mCol1"></select></label><label>Notes column <select id="mCol2"></select></label>
       <div class="small" id="mapPrev"></div><div class="row"><button id="mapNo">Cancel</button><button class="primary" id="mapGo" style="font-size:16px">Import</button></div></div></div>

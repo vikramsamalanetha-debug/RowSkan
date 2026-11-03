@@ -58,7 +58,7 @@
   /* ---- vehicle records: deterministic merge ----
    * record = { vin, u, deleted?, decoded?, notes?, lotLocation?, capturedAt?, photos:[{id,takenAt}], removed:[photoId], f:{field:timestamp} }
    * f holds the time each editable field was last changed, so edits to DIFFERENT fields on two devices both survive. */
-  const FIELDS = ['decoded', 'notes', 'lotLocation', 'capturedAt', 'sold'];
+  const FIELDS = ['decoded', 'notes', 'lotLocation', 'capturedAt', 'sold', 'gps'];
   const later = (a, b) => (a || '') === (b || '') ? 0 : ((a || '') > (b || '') ? 1 : -1);
   function stamp(rec, fields, at) { rec.f = rec.f || {}; for (const k of fields) rec.f[k] = at; rec.u = at; return rec; }
   function mergeRecords(a, b) {

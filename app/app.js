@@ -168,6 +168,7 @@
       cur = v; return commit(v, null);
     }).then((v) => {
       cur = v; show('sVeh'); renderVehicle(); startPhotoCamera();
+      if (isPhone && !openedDone && !v.gps) captureSpot(false);
       if (isVin(vin) && !(cur.decoded && cur.decoded.make)) decodeInto(vin).then(() => { if (cur && cur.vin === vin) S.getVeh(vin).then((f) => { if (f) { cur = Object.assign({}, cur, { decoded: f.decoded }); renderVehicle(); } }); }).catch(() => { if (cur && cur.vin === vin) renderVehicle(); });
     });
   }
@@ -194,7 +195,7 @@
     $('locIn').value = cur.lotLocation || ''; $('noteIn').value = cur.notes || '';
     ['mYear:year', 'mMake:make', 'mModel:model', 'mTrim:trim'].forEach((p) => { const [id, k] = p.split(':'); if (document.activeElement !== $(id)) $(id).value = (d && d[k]) || ''; });
     if (!isVin(cur.vin) || (d && (d.manual || d.partial))) $('manDet').open = true;
-    syncPickers();
+    syncPickers(); renderGps();
     renderStrip();
   }
 
@@ -227,6 +228,49 @@
   }
   function syncPickers() { setPicker('sYear', 'mYear', YEARS, '— Year —'); setPicker('sMake', 'mMake', MAKES, '— Make —'); loadModels(); const d = cur && cur.decoded; $('manNote').textContent = d && d.partial ? 'Read from the VIN: ' + [d.make, d.year, d.country].filter(Boolean).join(' · ') : ''; }
   wirePicker('sYear', 'mYear', loadModels); wirePicker('sMake', 'mMake', loadModels); wirePicker('sModel', 'mModel', null);
+
+  /* ---------------------------------------------------------------- where the vehicle is parked (GPS) */
+  const useFeet = /(^en$|-(US|LR|MM)$)/i.test(navigator.language || 'en-US');
+  const fmtDist = (m) => useFeet ? (m * 3.28084 < 1000 ? Math.round(m * 3.28084) + ' ft' : (m / 1609.344).toFixed(1) + ' mi') : (m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1) + ' km');
+  const rad = (x) => x * Math.PI / 180;
+  function distM(a, b) { const R = 6371000, dl = rad(b.lat - a.lat), dn = rad(b.lng - a.lng), h = Math.sin(dl / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
+  function bearingDeg(a, b) { const y = Math.sin(rad(b.lng - a.lng)) * Math.cos(rad(b.lat)), x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lng - a.lng)); return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; }
+  const compass8 = (d) => ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(d / 45) % 8];
+  function mapsUrl(g, name) { return /iPhone|iPad/.test(navigator.userAgent) ? 'https://maps.apple.com/?ll=' + g.lat + ',' + g.lng + '&q=' + encodeURIComponent(name || 'Vehicle') : /Android|Mobile/i.test(navigator.userAgent) ? 'https://www.google.com/maps/search/?api=1&query=' + g.lat + ',' + g.lng : 'https://www.openstreetmap.org/?mlat=' + g.lat + '&mlon=' + g.lng + '#map=19/' + g.lat + '/' + g.lng; }
+  function captureSpot(manual) {
+    const veh = cur; if (!veh || !navigator.geolocation) { if (manual) toast('This device cannot give its location'); return; }
+    if (manual) $('gpsTxt').textContent = 'Getting your position…';
+    navigator.geolocation.getCurrentPosition((p) => {
+      if (!cur || cur.vin !== veh.vin) return;
+      cur.gps = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy || 0), at: Net.nowIso() };
+      commit(cur, ['gps']).then(() => { renderGps(); if (manual) toast('Spot saved'); });
+    }, () => { if (manual) { toast('Could not get your position — allow location for RowSkan'); renderGps(); } }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 });
+  }
+  function renderGps() {
+    const g = cur && cur.gps; $('gpsTxt').textContent = g ? '📍 Spot saved · accurate to about ' + fmtDist(g.acc || 10) : 'No spot saved yet';
+    $('gpsFind').disabled = !g; $('gpsUpd').hidden = !isPhone;
+  }
+  $('gpsUpd').onclick = () => captureSpot(true);
+  let findWatch = null, findHead = null, findTarget = null, findName = '', findPos = null;
+  function onHeading(e) { const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.absolute && e.alpha != null ? (360 - e.alpha) % 360 : null); if (h != null) { findHead = h; drawFind(); } }
+  function drawFind() {
+    if (!findTarget) return; if (!findPos) { $('fDist').textContent = '…'; return; }
+    const d = distM(findPos, findTarget), b = bearingDeg(findPos, findTarget), rel = findHead != null ? (b - findHead + 360) % 360 : b;
+    $('fDist').textContent = d < (useFeet ? 15 * 0.3048 : 5) ? 'You are here' : fmtDist(d);
+    $('fArrow').style.transform = 'rotate(' + rel + 'deg)';
+    $('fNote').textContent = (findHead != null ? 'Walk the way the arrow points.' : 'Arrow points ' + compass8(b) + ' (turn your phone so the top points north)') + ' Your position is accurate to about ' + fmtDist(findPos.acc || 10) + '.';
+  }
+  function stopFind() { if (findWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(findWatch); findWatch = null; window.removeEventListener('deviceorientationabsolute', onHeading, true); window.removeEventListener('deviceorientation', onHeading, true); $('findDlg').classList.remove('on'); findTarget = null; findPos = null; findHead = null; }
+  function openFind(v) {
+    if (!v || !v.gps) return toast('No spot saved for this vehicle yet');
+    findTarget = v.gps; findName = title(v) || 'Vehicle'; findPos = null; findHead = null; $('fTitle').textContent = 'Find ' + findName; $('fNote').textContent = 'Getting your position…'; $('fDist').textContent = '…'; $('findDlg').classList.add('on');
+    const start = () => { window.addEventListener('deviceorientationabsolute', onHeading, true); window.addEventListener('deviceorientation', onHeading, true); };
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().then((r) => { if (r === 'granted') start(); }).catch(() => { }); else start();
+    if (navigator.geolocation) findWatch = navigator.geolocation.watchPosition((p) => { findPos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: Math.round(p.coords.accuracy || 0) }; drawFind(); }, () => { $('fNote').textContent = 'Could not get your position — allow location for RowSkan.'; }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  }
+  $('gpsFind').onclick = () => { if (cur) openFind(cur); };
+  $('fClose').onclick = stopFind; $('fMaps').onclick = () => { if (findTarget) window.open(mapsUrl(findTarget, findName), '_blank', 'noopener'); };
+  $('sMap').onclick = () => S.getVeh(sideVin).then((v) => { if (v && v.gps) window.open(mapsUrl(v.gps, title(v)), '_blank', 'noopener'); });
   function renderStrip() {
     urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
     const strip = $('strip'); strip.innerHTML = '';
@@ -448,7 +492,7 @@
   function fillSide() {
     S.getVeh(sideVin).then((v) => {
       if (!v || v.deleted) return closeSide(); const dd = v.decoded || {};
-      $('sTitle').textContent = title(v) || 'Details pending'; $('sVin').textContent = v.vin;
+      $('sTitle').textContent = title(v) || 'Details pending'; $('sVin').textContent = v.vin; $('sMap').hidden = !v.gps;
       $('sDec').innerHTML = [['Body', dd.bodyClass], ['Drive', dd.driveType], ['Engine', [dd.cylinders && dd.cylinders + ' cyl', dd.displacementL && (+dd.displacementL).toFixed(1) + 'L'].filter(Boolean).join(' ')], ['Fuel', dd.fuel], ['Trim', dd.trim]].filter((x) => x[1]).map((x) => '<div><span>' + x[0] + '</span>' + esc(x[1]) + '</div>').join('');
       if (document.activeElement !== $('sLot')) $('sLot').value = v.lotLocation || ''; if (document.activeElement !== $('sNote')) $('sNote').value = v.notes || '';
       sideUrls.forEach((u) => URL.revokeObjectURL(u)); sideUrls = []; const box = $('sPh'); box.innerHTML = ''; $('sPhN').textContent = v.photos.length + (v.photos.length === 1 ? ' photo' : ' photos');

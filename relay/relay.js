@@ -178,6 +178,26 @@ async function blobGet(uid, query, res) {
   });
 }
 
+/* ---------------------------------------------------------------- link channel (adding a new device by QR)
+ * The new device shows a QR with a random 128-bit id. The signed-in device scans it and PUTs one encrypted
+ * hand-off (only the new device can decrypt it). The new device GETs it once (no sign-in needed: knowing the
+ * random id is the proof) and the relay deletes it. Entries expire after 5 minutes. */
+const links = new Map(); // id -> { body, ts }
+const LINK_ID_RE = /^[A-Za-z0-9_-]{22,64}$/, LINK_TTL = +(process.env.RELAY_LINK_TTL_MS || 300000), LINK_MAX = 20000, LINK_MAX_ENTRIES = 5000;
+function sweepLinks() { const t = now(); for (const [k, v] of links) if (t - v.ts > LINK_TTL) links.delete(k); }
+setInterval(sweepLinks, 30000).unref();
+async function linkPut(req, query) {
+  const id = query.get('id'); if (!LINK_ID_RE.test(id || '')) throw new HttpError(400, 'Invalid link id.');
+  const ch = []; let n = 0; for await (const c of req) { n += c.length; if (n <= LINK_MAX) ch.push(c); }
+  if (n > LINK_MAX) throw new HttpError(413, 'Too large.');
+  sweepLinks(); need(links.size < LINK_MAX_ENTRIES, 503, 'Busy. Try again.'); need(!links.has(id), 409, 'This code was already used.');
+  links.set(id, { body: Buffer.concat(ch), ts: now() }); return { ok: true };
+}
+function linkGet(query) {
+  const id = query.get('id'); if (!LINK_ID_RE.test(id || '')) throw new HttpError(400, 'Invalid link id.');
+  sweepLinks(); const e = links.get(id); if (!e) return null; links.delete(id); return e.body; // one read, then gone
+}
+
 /* ---------------------------------------------------------------- server */
 const rate = new Map(); // uid -> {n, until} simple burst limiter (600 requests / minute)
 function limited(uid) { const t = now(), r = rate.get(uid) || { n: 0, reset: t + 60000 }; if (t > r.reset) { r.n = 0; r.reset = t + 60000; } r.n++; rate.set(uid, r); return r.n > 600; }
@@ -197,10 +217,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') return send(res, 204, {});
     const u = new URL(req.url, 'http://x'), key = req.method + ' ' + u.pathname;
     if (key === 'GET /health') return send(res, 200, { ok: true });
+    if (key === 'GET /v1/link') { const b = linkGet(u.searchParams); return b ? send(res, 200, null, b) : send(res, 404, { error: 'Not ready yet.' }); }
     if (!CFG.project) return send(res, 503, { error: 'Relay not configured (RELAY_PROJECT_ID).' });
     const uid = await verifyToken(req.headers.authorization);
     if (!uid) return send(res, 401, { error: 'Sign in again.' });
     if (limited(uid)) return send(res, 429, { error: 'Slow down.' });
+    if (key === 'PUT /v1/link') return send(res, 200, await linkPut(req, u.searchParams));
     if (key === 'PUT /v1/blob') return send(res, 200, await blobPut(uid, req, u.searchParams, res));
     if (key === 'GET /v1/blob') return send(res, 200, null, await blobGet(uid, u.searchParams, res));
     const h = routes[key]; if (!h) return send(res, 404, { error: 'Not found.' });

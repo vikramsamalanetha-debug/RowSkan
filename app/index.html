@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f59e0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RowSkan">
+<title>RowSkan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f4ef;--surface:#fff;--ink:#1d2430;--muted:#667085;--line:#e4e0d6;--brand:#f59e0b;--brand-ink:#3a2500;--dark:#1f2937;--ok:#15803d;--warn:#b45309;--bad:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--surface:#1c2027;--ink:#eceff4;--muted:#9aa4b2;--line:#2c323c;--brand-ink:#1a1100}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+.screen{display:none;min-height:100%;flex-direction:column}
+.screen.on{display:flex}
+.top{background:var(--dark);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px}
+.top h1{font-size:18px;margin:0;flex:1}
+.top img{width:28px;height:28px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.12);color:#fff;border:0}
+.dot{width:9px;height:9px;border-radius:50%;background:#9ca3af}
+.dot.on{background:#22c55e}.dot.bad{background:#ef4444}
+.body{padding:16px;flex:1;display:flex;flex-direction:column;gap:12px}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:14px 16px;border-radius:14px;min-height:52px}
+button.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:700;font-size:18px}
+button.ghost{background:transparent}
+button:disabled{opacity:.5}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.small{font-size:13px;color:var(--muted)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.5px}
+.vcard{display:flex;gap:12px;align-items:center;text-align:left;width:100%}
+.vcard .th{width:64px;height:48px;border-radius:8px;background:rgba(127,127,127,.2);object-fit:cover;flex:none}
+.vcard .t{flex:1;min-width:0}
+.vcard .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--ok);border-color:var(--ok)}.chip.wait{color:var(--warn);border-color:var(--warn)}
+.cam{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4;max-height:56vh;width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.reticle{position:absolute;left:6%;right:6%;top:38%;bottom:38%;border:3px solid rgba(245,158,11,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.35);pointer-events:none}
+.hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 3px #000;padding:0 12px}
+.shutter{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:var(--brand);box-shadow:0 0 0 3px var(--brand);padding:0;min-height:0;flex:none}
+.shutter:active{transform:scale(.94)}
+.strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.strip .ph{position:relative;flex:none;width:76px;height:76px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.strip img{width:100%;height:100%;object-fit:cover}
+.strip .x{position:absolute;top:2px;right:2px;width:24px;height:24px;min-height:0;padding:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:0;font-size:14px;line-height:24px}
+.strip .ok{position:absolute;bottom:2px;right:4px;color:#22c55e;font-size:14px;text-shadow:0 0 3px #000}
+input[type=text]{width:100%;font:inherit;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);text-transform:uppercase}
+input.free{text-transform:none}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.kv span{display:block;font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.4px}
+.banner{padding:10px 12px;border-radius:12px;background:rgba(180,83,9,.12);color:var(--warn);font-size:14px}
+.banner.err{background:rgba(185,28,28,.12);color:var(--bad)}
+.foot{text-align:center;color:var(--muted);font-size:12px;padding:14px 0 calc(14px + env(safe-area-inset-bottom))}
+.foot a{color:inherit;font-weight:600}
+.sticky{position:sticky;bottom:0;background:var(--bg);padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.toggle input{width:44px;height:26px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center;z-index:9}
+#toast.show{opacity:1}
+progress{width:100%;height:8px}
+
+.wrap{width:100%;max-width:1100px;margin:0 auto}
+.tabs{display:flex;gap:6px;background:rgba(127,127,127,.14);padding:4px;border-radius:12px}
+.tabs button{flex:1;border:0;background:transparent;padding:10px;border-radius:9px;font-weight:600;min-height:0}
+.tabs button.on{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+label.f{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);display:block;margin:6px 0 4px}
+input[type=password],input[type=email],input[type=search]{width:100%;font:inherit;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.qr{width:min(260px,70vw);aspect-ratio:1;margin:0 auto;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.qr svg{width:100%;height:100%;display:block}
+textarea.linktxt{width:100%;font:12px ui-monospace,Menlo,Consolas,monospace;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);min-height:70px}
+#list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.drop{outline:3px dashed var(--brand);outline-offset:-6px}
+.row.wrapbtn{flex-wrap:wrap}
+.dev{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.dev:first-child{border-top:0}
+@media (min-width:900px){.body{padding:24px}.cam{max-height:48vh}}
+</style>
+</head>
+<body>
+
+<!-- SIGN IN / REGISTER -->
+<section class="screen" id="sAuth">
+  <div class="top"><img src="icon.svg" alt=""><h1>RowSkan</h1></div>
+  <div class="body wrap" style="max-width:440px">
+    <div class="banner" id="authNote" hidden></div>
+    <p class="small" style="margin:0">Sign in to manage your inventory, or create an account.</p>
+    <div class="tabs"><button id="tabIn" class="on">Sign In</button><button id="tabUp">Register</button></div>
+    <div id="authForm" class="card">
+      <label class="f" for="authEmail">Email</label>
+      <input type="email" id="authEmail" autocomplete="username" autocapitalize="off" spellcheck="false">
+      <label class="f" for="authPw">Password</label>
+      <input type="password" id="authPw" autocomplete="current-password">
+      <div class="small" id="authHint" hidden style="margin-top:4px">At least 8 characters.</div>
+      <button class="primary" id="authGo" style="width:100%;margin-top:12px">Sign in</button>
+      <div style="text-align:center;margin-top:8px"><button id="authForgot" class="ghost" style="min-height:0;padding:6px 10px">Forgot your password?</button></div>
+      <div class="banner err" id="authErr" hidden role="alert" style="margin-top:8px"></div>
+    </div>
+    <div id="resetForm" class="card" hidden>
+      <b>Reset your password</b>
+      <p class="small" style="margin:6px 0 8px">Enter your email and we will send you a link to set a new password.</p>
+      <input type="email" id="rsEmail" autocomplete="email" autocapitalize="off" spellcheck="false">
+      <button class="primary" id="rsSend" style="width:100%;margin-top:10px">Send reset link</button>
+      <div class="small" id="rsSent" hidden style="margin-top:8px">If that email has an account, a reset link is on its way. Check your spam folder too.</div>
+      <div class="banner err" id="rsErr" hidden style="margin-top:8px"></div>
+      <div style="text-align:center;margin-top:8px"><button id="rsBack" class="ghost" style="min-height:0;padding:6px 10px">Back to sign in</button></div>
+    </div>
+    <div class="card"><b>Already using RowSkan on another device?</b>
+      <p class="small" style="margin:6px 0 8px">Sign in without typing a password: show a code here and approve it from the device you already use.</p>
+      <button id="authScanLink" style="width:100%">Sign in by scanning from another device</button></div>
+  </div>
+  <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+</section>
+
+<!-- LINK THIS DEVICE (show a code for a signed-in device to approve) -->
+<section class="screen" id="sLink">
+  <div class="top"><button class="pill" id="linkBack">‹ Back</button><h1 style="text-align:center">Link this device</h1><span style="width:64px"></span></div>
+  <div class="body wrap" style="max-width:480px">
+    <div class="card" style="text-align:center">
+      <p style="margin:0 0 10px"><b>On a device that already has RowSkan</b>, open <b>Settings → Add a device</b> and scan this code.</p>
+      <div class="qr" id="linkQr"></div>
+      <p class="small" id="linkWait" style="margin:10px 0 0">Waiting for approval…</p>
+    </div>
+    <div class="card"><b>Can't scan?</b>
+      <p class="small" style="margin:6px 0 8px">Copy this link and open it in RowSkan on the other device, or paste it into <b>Add a device</b> there.</p>
+      <textarea class="linktxt" id="linkTxt" readonly></textarea>
+      <button id="linkCopy" style="width:100%;margin-top:8px">Copy link</button></div>
+    <div class="banner err" id="linkErr" hidden></div>
+    <div class="small" style="text-align:center">Your vehicles and photos are encrypted on your devices. Only your own devices can read them.</div>
+  </div>
+</section>
+
+<!-- HOME -->
+<section class="screen" id="sHome">
+  <div class="top"><img src="icon.svg" alt=""><h1>RowSkan</h1>
+    <button class="pill" id="connPill"><span class="dot" id="connDot"></span><span id="connTxt">Checking…</span></button></div>
+  <div class="body wrap">
+    <div class="row wrapbtn"><button class="primary" id="newVeh" style="min-height:64px">📷 Scan next vehicle</button></div>
+    <input type="search" id="q" placeholder="Search VIN, make, model, lot spot, notes" autocomplete="off">
+    <div class="card" id="syncCard"><div class="toggle"><div><b id="pendTxt">Nothing waiting</b><div class="small" id="syncMsg"></div></div>
+      <button id="syncNow" style="flex:none">Sync now</button></div></div>
+    <div id="list"></div>
+    <div class="small" id="emptyMsg" style="text-align:center;padding:30px 10px">No vehicles yet. Tap <b>Scan next vehicle</b>, or import a list of VINs below.</div>
+    <div class="row wrapbtn"><button id="exportBtn">⬇ Export CSV</button><button id="importBtn">⬆ Import VIN list</button><button id="setBtn">⚙ Settings</button></div>
+    <input type="file" id="importFile" accept=".csv,.txt,text/csv,text/plain" hidden>
+    <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+  </div>
+</section>
+
+<!-- SCAN VIN -->
+<section class="screen" id="sScan">
+  <div class="top"><button class="pill" id="scanBack">‹ Back</button><h1 style="text-align:center">Scan the VIN</h1><span style="width:64px"></span></div>
+  <div class="body wrap" style="max-width:640px">
+    <div class="cam"><video id="scanVideo" playsinline muted autoplay></video><div class="reticle"></div>
+      <div class="hint" id="scanHint">Hold the barcode inside the box</div></div>
+    <div class="banner" id="scanNote" hidden></div>
+    <div class="row"><button id="torchBtn" hidden>🔦 Light</button><button id="scanPhotoBtn" hidden>🖼 Pick a photo</button></div>
+    <div class="card"><b>Or type it</b>
+      <input type="text" id="vinIn" maxlength="17" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="17-character VIN" style="margin-top:8px" class="mono">
+      <div class="small" id="vinMsg" style="margin-top:6px"></div>
+      <button class="primary" id="vinGo" style="margin-top:8px;width:100%" disabled>Use this VIN</button></div>
+  </div>
+</section>
+
+<!-- VEHICLE -->
+<section class="screen" id="sVeh">
+  <div class="top"><button class="pill" id="vehBack">‹ Home</button><h1 id="vehTitle" style="text-align:center;font-size:16px">Vehicle</h1><span style="width:64px"></span></div>
+  <div class="body wrap" style="padding-bottom:0;max-width:640px">
+    <div class="card"><div class="mono" id="vehVin" style="font-weight:700"></div>
+      <div id="vehDecoded" class="kv" style="margin-top:8px"></div>
+      <div class="banner" id="vehWarn" hidden style="margin-top:8px"></div></div>
+    <div class="cam" id="photoCam"><video id="photoVideo" playsinline muted autoplay></video><div class="hint" id="photoHint"></div></div>
+    <div class="row" style="align-items:center"><div class="small" id="photoCount" style="flex:1"></div>
+      <button class="shutter" id="shutter" aria-label="Take photo"></button>
+      <div style="flex:1;text-align:right"><button id="pickBtn" hidden>Add photos from files</button></div></div>
+    <div class="strip" id="strip"></div>
+    <input type="text" class="free" id="locIn" placeholder="Lot spot / row (optional)" maxlength="60">
+    <input type="text" class="free" id="noteIn" placeholder="Notes (optional)" maxlength="300">
+    <input type="file" id="fileIn" accept="image/*" multiple hidden>
+    <input type="file" id="fileScan" accept="image/*" hidden>
+  </div>
+  <div class="sticky"><div class="wrap" style="max-width:640px"><div class="row"><button id="vehDel" class="ghost" style="flex:0 0 auto" aria-label="Delete vehicle">🗑</button><button class="primary" id="vehDone">Done — next vehicle</button></div></div></div>
+</section>
+
+<!-- SETTINGS -->
+<section class="screen" id="sSet">
+  <div class="top"><button class="pill" id="setBack">‹ Back</button><h1 style="text-align:center">Settings</h1><span style="width:64px"></span></div>
+  <div class="body wrap" style="max-width:640px">
+    <div class="card"><b>Account</b><div class="small" id="setAcct" style="margin-top:4px"></div></div>
+    <div class="card"><b>Your devices</b><div class="small" style="margin:4px 0 6px">Each device keeps its own copy and they sync in the background when online.</div><div id="devList" class="small">…</div>
+      <button id="addDev" style="width:100%;margin-top:10px">＋ Add a device (scan its code)</button></div>
+    <div class="card"><b>On this device</b><div class="small" id="setStore" style="margin-top:4px"></div>
+      <label class="small" style="display:block;margin-top:10px">Name of this device</label><input type="text" class="free" id="devName" maxlength="40"></div>
+    <button id="signOut" class="ghost">Sign out and remove data from this device</button>
+    <button id="delAcct" class="ghost" style="color:var(--bad)">Delete my account and all my data</button>
+    <div class="foot">A product of <a href="https://www.litamerica.net" target="_blank" rel="noopener">LIT America</a> · www.litamerica.net</div>
+  </div>
+</section>
+
+<!-- APPROVE A NEW DEVICE -->
+<section class="screen" id="sApprove">
+  <div class="top"><button class="pill" id="apBack">‹ Back</button><h1 style="text-align:center">Add a device</h1><span style="width:64px"></span></div>
+  <div class="body wrap" style="max-width:480px">
+    <div id="apAsk" class="card">
+      <b>Scan the code shown on the new device</b>
+      <div class="cam" id="apCam" style="margin-top:8px"><video id="apVideo" playsinline muted autoplay></video></div>
+      <div class="banner" id="apNote" hidden style="margin-top:8px"></div>
+      <label class="small" style="display:block;margin-top:10px">…or paste its link</label>
+      <textarea class="linktxt" id="apPaste" placeholder="https://…#link=…"></textarea>
+      <button id="apUse" style="width:100%;margin-top:8px">Use this link</button>
+    </div>
+    <div id="apConfirm" class="card" hidden>
+      <b>Approve <span id="apName"></span>?</b>
+      <p class="small" style="margin:6px 0 10px">It will be signed in to your account and receive a copy of your inventory. Only approve devices that are yours.</p>
+      <div class="row"><button id="apNo">Cancel</button><button class="primary" id="apYes">Approve</button></div>
+    </div>
+    <div class="banner err" id="apErr" hidden></div>
+  </div>
+</section>
+
+<div id="toast"></div>
+<script src="config.js"></script>
+<script src="qr.js"></script>
+<script src="code39.js"></script>
+<script src="sync.js"></script>
+<script src="store.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
